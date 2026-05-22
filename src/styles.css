@@ -1,0 +1,94 @@
+:root {
+  color-scheme: dark;
+  --bg: #090b10;
+  --ink: #10131a;
+  --paper: #fff2dc;
+  --muted: #b7b0a5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#game-root {
+  width: 100%;
+  min-width: 320px;
+  height: 100%;
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 20%, rgba(83, 182, 178, 0.08), transparent 34%),
+    var(--bg);
+  color: var(--paper);
+  font-family: "Courier New", Courier, monospace;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+noscript {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--ink);
+  color: var(--paper);
+  text-align: center;
+}
+
+.rotate-hint {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: none;
+  place-items: center;
+  padding: 24px;
+  background:
+    linear-gradient(rgba(9, 11, 16, 0.92), rgba(9, 11, 16, 0.96)),
+    repeating-linear-gradient(0deg, #111722 0 9px, #090b10 9px 18px);
+  color: var(--paper);
+  text-align: center;
+}
+
+.rotate-hint div {
+  width: min(250px, calc(100vw - 48px));
+  border: 3px solid #697383;
+  border-radius: 8px;
+  padding: 22px;
+  background: #181d25;
+  box-shadow: 0 8px 0 #05070a;
+}
+
+.rotate-hint strong,
+.rotate-hint span {
+  display: block;
+}
+
+.rotate-hint strong {
+  margin-bottom: 10px;
+  color: #fff2dc;
+  font-size: 1.6rem;
+}
+
+.rotate-hint span {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+@media (orientation: portrait) and (max-width: 760px) {
+  .rotate-hint {
+    display: grid;
+  }
+}
