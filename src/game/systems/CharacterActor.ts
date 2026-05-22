@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import type { ActorBeatState, Mood } from "../data/chapters";
+import type { ActorBeatState, ActorId, Mood } from "../data/chapters";
 
 export class CharacterActor {
   private readonly scene: Phaser.Scene;
@@ -7,20 +7,22 @@ export class CharacterActor {
   private readonly sprite: Phaser.GameObjects.Image;
   private readonly shadow: Phaser.GameObjects.Ellipse;
   private readonly emote: Phaser.GameObjects.Text;
+  private readonly actorId: ActorId;
   private mood: Mood = "idle";
   private phase: number;
 
   constructor(
     scene: Phaser.Scene,
-    textureKey: string,
+    actorId: ActorId,
     x: number,
     y: number,
     phase: number
   ) {
     this.scene = scene;
+    this.actorId = actorId;
     this.phase = phase;
     this.shadow = scene.add.ellipse(0, -4, 112, 18, 0x000000, 0.38);
-    this.sprite = scene.add.image(0, 0, textureKey).setOrigin(0.5, 1);
+    this.sprite = scene.add.image(0, 0, `${actorId}-neutral`).setOrigin(0.5, 1);
     this.sprite.setScale(0.46);
     this.emote = scene.add
       .text(0, -206, "", {
@@ -39,6 +41,7 @@ export class CharacterActor {
 
   applyBeat(state: ActorBeatState, immediate = false) {
     this.mood = state.mood;
+    this.sprite.setTexture(this.textureForMood(state.mood));
     this.sprite.setFlipX(state.facing === "left");
     this.sprite.setScale(state.scale ?? 0.46);
     this.setEmote(state.mood);
@@ -97,10 +100,28 @@ export class CharacterActor {
       surprised: "!",
       shy: "...",
       thinking: "?",
+      talking: "",
       finale: "<3"
     };
 
     this.emote.setText(emotes[mood]);
     this.emote.setVisible(Boolean(emotes[mood]));
+  }
+
+  private textureForMood(mood: Mood) {
+    const expressionByMood: Record<Mood, string> = {
+      idle: "neutral",
+      walk: "neutral",
+      soft: "shy",
+      happy: "happy",
+      nervous: "scared",
+      surprised: "surprised",
+      shy: "shy",
+      thinking: "thinking",
+      talking: "talking",
+      finale: "happy"
+    };
+
+    return `${this.actorId}-${expressionByMood[mood]}`;
   }
 }

@@ -11,6 +11,7 @@ export type Mood =
   | "surprised"
   | "shy"
   | "thinking"
+  | "talking"
   | "finale";
 
 export type ActorId = "alexis" | "kiara";
@@ -80,7 +81,7 @@ export const chapters: Chapter[] = [
         text:
           "Cuando me cuentes que paso exactamente, este dialogo sera tu primera frase real.",
         actors: {
-          alexis: { x: 382, y: 378, mood: "thinking", facing: "right" },
+          alexis: { x: 382, y: 378, mood: "talking", facing: "right" },
           kiara: { x: 552, y: 378, mood: "shy", facing: "left" }
         },
         camera: { zoom: 1.08, x: 470, y: 292 }
@@ -105,7 +106,7 @@ export const chapters: Chapter[] = [
           "Tambien podemos ocultar recuerdos para que aparezcan solo si ella explora o si tu decides mostrarlos.",
         actors: {
           alexis: { x: 350, y: 378, mood: "soft", facing: "right" },
-          kiara: { x: 560, y: 378, mood: "thinking", facing: "left" }
+          kiara: { x: 560, y: 378, mood: "talking", facing: "left" }
         },
         memory: {
           id: "first-path",

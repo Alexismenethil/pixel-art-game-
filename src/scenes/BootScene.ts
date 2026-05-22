@@ -1,6 +1,4 @@
 import Phaser from "phaser";
-import { createTransparentTexture } from "../game/utils/createTransparentTexture";
-
 export class BootScene extends Phaser.Scene {
   private loadingBar!: Phaser.GameObjects.Rectangle;
   private loadingText!: Phaser.GameObjects.Text;
@@ -44,14 +42,26 @@ export class BootScene extends Phaser.Scene {
     });
 
     this.load.image("characters-sheet", "/assets/characters-sheet.png");
-    this.load.image("alexis-base", "/assets/alexis-base.png");
-    this.load.image("kiara-base", "/assets/kiara-base.png");
+    this.load.image("chapter-1-reference", "/assets/references/chapter-1-ai-background-reference.png");
+
+    const locations = ["hospital", "bosquete", "river"] as const;
+    const layers = ["sky", "back", "mid", "front", "fx"] as const;
+
+    for (const location of locations) {
+      for (const layer of layers) {
+        this.load.image(`bg-${location}-${layer}`, `/assets/chapter-1/${location}/${layer}.png`);
+      }
+    }
+
+    const expressions = ["neutral", "happy", "surprised", "scared", "shy", "talking", "thinking"] as const;
+
+    for (const expression of expressions) {
+      this.load.image(`alexis-${expression}`, `/assets/characters/alexis/${expression}.png`);
+      this.load.image(`kiara-${expression}`, `/assets/characters/kiara/${expression}.png`);
+    }
   }
 
   create() {
-    createTransparentTexture(this, "alexis-base", "alexis");
-    createTransparentTexture(this, "kiara-base", "kiara");
-
     this.time.delayedCall(350, () => {
       const params = new URLSearchParams(window.location.search);
       const chapterId = params.get("chapter");

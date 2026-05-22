@@ -6,12 +6,14 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build",
+    "generate:art": "node scripts/generate-art-assets.mjs",
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {
     "phaser": "^4.1.0"
   },
   "devDependencies": {
+    "pngjs": "^7.0.0",
     "typescript": "^6.0.3",
     "vite": "^8.0.14"
   }

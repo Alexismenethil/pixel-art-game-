@@ -19,7 +19,9 @@ No backend is needed yet. Add one later only if the game needs cloud saves, acco
 - Story scene advances by tapping/clicking the screen, without continue buttons.
 - Multiple map locations inside one chapter: hospital, bosquete and river.
 - Animated pixel backgrounds generated in Phaser.
-- Character actor system with mood states: walk, happy, nervous, surprised, shy, thinking and finale.
+- Layered PNG backgrounds for chapter 1 locations in `public/assets/chapter-1`.
+- Full-frame character sprite replacement for emotions. No runtime face patches.
+- Character actor system with mood states: walk, happy, nervous, surprised, shy, talking, thinking and finale.
 - Optional guides and memory markers that can be hidden for immersion.
 - Local progress saved in `localStorage`.
 - Portrait-phone orientation hint; gameplay is designed for landscape.
@@ -28,6 +30,7 @@ No backend is needed yet. Add one later only if the game needs cloud saves, acco
 
 ```bash
 npm install
+npm run generate:art
 npm run dev
 npm run build
 ```
@@ -57,6 +60,53 @@ Each beat can change:
 - camera zoom/pan
 - optional memory marker
 - chapter completion
+
+## Character Frames
+
+Character frames live in:
+
+```text
+public/assets/characters/alexis/
+public/assets/characters/kiara/
+```
+
+Each emotion is a complete PNG frame, for example:
+
+```text
+alexis/happy.png
+alexis/surprised.png
+kiara/talking.png
+kiara/scared.png
+```
+
+Important: do not build expressions by drawing eyes or mouths on top at runtime. If an emotion changes, replace the entire PNG frame. That keeps the pixel art clean and avoids deformed faces.
+
+The current generated frames are structural placeholders. The next art pass should replace each file with a final full-body pixel-art frame for that exact emotion.
+
+## Music
+
+Put audio files in:
+
+```text
+public/assets/audio/
+```
+
+Recommended names:
+
+```text
+home.mp3
+chapter-1.mp3
+chapter-2.mp3
+```
+
+Use `.ogg` too if you want better browser compatibility:
+
+```text
+home.ogg
+chapter-1.ogg
+```
+
+Do not use copyrighted YouTube music in a public deployed game unless you have permission or a license. Good options are: your own music, commissioned music, royalty-free libraries, or music with a Creative Commons license that allows reuse.
 
 ## Next Story Inputs Needed
 
