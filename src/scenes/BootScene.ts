@@ -44,7 +44,7 @@ export class BootScene extends Phaser.Scene {
     this.load.image("characters-sheet", "/assets/characters-sheet.png");
     this.load.image("chapter-1-reference", "/assets/references/chapter-1-ai-background-reference.png");
 
-    const locations = ["hospital", "bosquete", "river"] as const;
+    const locations = ["taxi", "hospital", "road", "bosquete", "valley", "ravine", "river"] as const;
     const layers = ["sky", "back", "mid", "front", "fx"] as const;
 
     for (const location of locations) {
@@ -53,21 +53,55 @@ export class BootScene extends Phaser.Scene {
       }
     }
 
-    const expressions = ["neutral", "happy", "surprised", "scared", "shy", "talking", "thinking"] as const;
+    const expressions = [
+      "neutral",
+      "happy",
+      "surprised",
+      "scared",
+      "shy",
+      "talking",
+      "thinking",
+      "angry",
+      "crying",
+      "laughing",
+      "sleepy"
+    ] as const;
 
     for (const expression of expressions) {
       this.load.image(`alexis-${expression}`, `/assets/characters/alexis/${expression}.png`);
       this.load.image(`kiara-${expression}`, `/assets/characters/kiara/${expression}.png`);
     }
+
+    const poses = ["back", "side", "sitting", "walking-side"] as const;
+
+    for (const pose of poses) {
+      this.load.image(`alexis-pose-${pose}`, `/assets/characters/alexis/poses/${pose}.png`);
+      this.load.image(`kiara-pose-${pose}`, `/assets/characters/kiara/poses/${pose}.png`);
+    }
+
+    const coupleScenes = ["walking-back", "hold-hands", "sitting-together", "kiss", "hug"] as const;
+
+    for (const scene of coupleScenes) {
+      this.load.image(`couple-${scene}`, `/assets/couples/${scene}.png`);
+    }
+
+    const npcs = ["taxi-driver", "nurse", "older-woman", "cafeteria-lady"] as const;
+
+    for (const npc of npcs) {
+      this.load.image(`npc-${npc}`, `/assets/npcs/${npc}.png`);
+    }
+
+    this.load.image("prop-purple-moto", "/assets/props/purple-moto.png");
   }
 
   create() {
     this.time.delayedCall(350, () => {
       const params = new URLSearchParams(window.location.search);
       const chapterId = params.get("chapter");
+      const startBeatId = params.get("beat") ?? undefined;
 
       if (chapterId) {
-        this.scene.start("StoryScene", { chapterId });
+        this.scene.start("StoryScene", { chapterId, startBeatId });
         return;
       }
 

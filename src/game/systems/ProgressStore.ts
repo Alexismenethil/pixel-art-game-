@@ -1,4 +1,4 @@
-import type { ChapterId } from "../data/chapters";
+import type { ChapterId, StoryStatId } from "../data/chapters";
 
 const STORAGE_KEY = "alexis-kiara-phaser-progress-v1";
 
@@ -12,12 +12,18 @@ export type GameProgress = {
   unlockedChapters: ChapterId[];
   completedChapters: ChapterId[];
   memories: MemoryEntry[];
+  storyStats: Record<StoryStatId, number>;
 };
 
 const defaultProgress: GameProgress = {
   unlockedChapters: ["chapter-1"],
   completedChapters: [],
-  memories: []
+  memories: [],
+  storyStats: {
+    ternura: 0,
+    nervios: 0,
+    sueno: 0
+  }
 };
 
 export function loadProgress(): GameProgress {
@@ -30,7 +36,11 @@ export function loadProgress(): GameProgress {
     return {
       unlockedChapters: parsed.unlockedChapters ?? ["chapter-1"],
       completedChapters: parsed.completedChapters ?? [],
-      memories: parsed.memories ?? []
+      memories: parsed.memories ?? [],
+      storyStats: {
+        ...defaultProgress.storyStats,
+        ...(parsed.storyStats ?? {})
+      }
     };
   } catch {
     return structuredClone(defaultProgress);
@@ -57,6 +67,10 @@ export function addMemory(progress: GameProgress, memory: MemoryEntry) {
   if (!progress.memories.some((entry) => entry.id === memory.id)) {
     progress.memories.push(memory);
   }
+}
+
+export function addStoryStat(progress: GameProgress, statId: StoryStatId, amount = 1) {
+  progress.storyStats[statId] = (progress.storyStats[statId] ?? 0) + amount;
 }
 
 export function resetProgress() {

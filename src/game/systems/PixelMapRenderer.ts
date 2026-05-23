@@ -1,30 +1,59 @@
 import Phaser from "phaser";
 import type { LocationId } from "../data/chapters";
 
-type GeneratedLocation = "hospital" | "bosquete" | "river";
+type GeneratedLocation = "taxi" | "hospital" | "road" | "bosquete" | "valley" | "ravine" | "river";
 type LayerName = "sky" | "back" | "mid" | "front" | "fx";
 
 type LayerSprite = Phaser.GameObjects.TileSprite & {
+  layerName: LayerName;
   layerSpeed: number;
   floatSpeed: number;
 };
 
-const generatedLocations: GeneratedLocation[] = ["hospital", "bosquete", "river"];
+const generatedLocations: GeneratedLocation[] = ["taxi", "hospital", "road", "bosquete", "valley", "ravine", "river"];
 const layerNames: LayerName[] = ["sky", "back", "mid", "front", "fx"];
 const layerDepths: Record<LayerName, number> = {
   sky: 0,
   back: 5,
   mid: 10,
-  front: 55,
-  fx: 65
+  front: 18,
+  fx: 24
+};
+
+const layerAlphas: Record<LayerName, number> = {
+  sky: 1,
+  back: 0.96,
+  mid: 0.96,
+  front: 0.88,
+  fx: 0.58
 };
 
 const layerSpeeds: Record<LayerName, number> = {
-  sky: 2,
-  back: 5,
-  mid: 12,
-  front: 20,
-  fx: 26
+  sky: 0,
+  back: 0,
+  mid: 0,
+  front: 0,
+  fx: 18
+};
+
+const locationLayerSpeeds: Record<GeneratedLocation, Partial<Record<LayerName, number>>> = {
+  taxi: { sky: 0, back: 0, mid: 0, front: 0, fx: 10 },
+  hospital: { sky: 0, back: 0, mid: 0, front: 0, fx: 10 },
+  road: { sky: 0, back: 0, mid: 0, front: 0, fx: 16 },
+  bosquete: { sky: 0, back: 0, mid: 0, front: 0, fx: 14 },
+  valley: { sky: 0, back: 0, mid: 0, front: 0, fx: 9 },
+  ravine: { sky: 0, back: 0, mid: 0, front: 0, fx: 12 },
+  river: { sky: 0, back: 0, mid: 0, front: 0, fx: 28 }
+};
+
+const locationLayerFloats: Record<GeneratedLocation, Partial<Record<LayerName, number>>> = {
+  taxi: { fx: 3 },
+  hospital: { fx: 3 },
+  road: { back: 2, fx: 4 },
+  bosquete: { back: 3, fx: 9 },
+  valley: { fx: 5 },
+  ravine: { fx: 7 },
+  river: { fx: 6 }
 };
 
 export class PixelMapRenderer {
@@ -59,13 +88,9 @@ export class PixelMapRenderer {
   update(timeSeconds: number) {
     this.fallbackGraphics.clear();
 
-    if (this.isGeneratedLocation(this.location)) {
-      this.updateGeneratedLayers(this.location, timeSeconds);
-    } else if (this.location === "night") {
-      this.drawNight(timeSeconds);
-    } else if (this.location === "room") {
-      this.drawRoom(timeSeconds);
-    }
+    if (this.isGeneratedLocation(this.location)) this.updateGeneratedLayers(this.location, timeSeconds);
+    else if (this.location === "night") this.drawNight(timeSeconds);
+    else if (this.location === "room") this.drawRoom(timeSeconds);
 
     this.flashGraphics.clear();
     if (this.transitionAlpha > 0) {
@@ -73,6 +98,14 @@ export class PixelMapRenderer {
       this.flashGraphics.fillRect(0, 0, 960, 540);
       this.transitionAlpha = Math.max(0, this.transitionAlpha - 0.035);
     }
+  }
+
+  getRenderObjects() {
+    return [
+      this.fallbackGraphics,
+      this.flashGraphics,
+      ...Array.from(this.layerMap.values()).flat()
+    ];
   }
 
   private createGeneratedLayers() {
@@ -85,8 +118,9 @@ export class PixelMapRenderer {
           .setDepth(layerDepths[layerName])
           .setVisible(false) as LayerSprite;
 
-        layer.layerSpeed = layerSpeeds[layerName];
-        layer.floatSpeed = layerName === "fx" ? 12 : layerName === "back" ? 3 : 0;
+        layer.layerName = layerName;
+        layer.layerSpeed = locationLayerSpeeds[location][layerName] ?? layerSpeeds[layerName];
+        layer.floatSpeed = locationLayerFloats[location][layerName] ?? 0;
         layers.push(layer);
       }
 
@@ -101,11 +135,52 @@ export class PixelMapRenderer {
     for (const layer of layers) {
       layer.tilePositionX = time * layer.layerSpeed;
       layer.tilePositionY = Math.sin(time * 0.8 + layer.depth) * layer.floatSpeed;
+      const alpha =
+        layer.layerName === "fx"
+          ? layerAlphas.fx + Math.sin(time * 1.8 + layer.depth) * 0.12
+          : layerAlphas[layer.layerName];
+      layer.setAlpha(alpha);
     }
   }
 
   private isGeneratedLocation(location: LocationId): location is GeneratedLocation {
-    return location === "hospital" || location === "bosquete" || location === "river";
+    return generatedLocations.includes(location as GeneratedLocation);
+  }
+
+  private drawTaxi(time: number) {
+    this.fillRect(0, 0, 960, 540, 0x101826);
+    this.fillRect(0, 42, 960, 228, 0x1d2b3c);
+    this.fillRect(0, 270, 960, 86, 0x334051);
+    this.fillRect(0, 356, 960, 184, 0x16181f);
+
+    for (let x = -80; x < 1040; x += 210) {
+      const drift = (time * 42 + x) % 1120;
+      this.fillRect(drift - 80, 78, 86, 116, 0x293848);
+      this.fillRect(drift - 62, 104, 50, 24, 0x527184, 0.85);
+      this.fillRect(drift - 62, 142, 50, 24, 0x527184, 0.65);
+    }
+
+    for (let x = -120; x < 1080; x += 160) {
+      const drift = (time * 86 + x) % 1200;
+      this.fillRect(drift - 120, 318, 76, 6, 0xd9c88e, 0.72);
+    }
+
+    this.fillRect(70, 64, 820, 218, 0x070a10, 0.48);
+    this.fillRect(102, 86, 756, 172, 0x8bb8c8, 0.12);
+    this.fillRect(458, 64, 44, 218, 0x090b10, 0.72);
+    this.fillRect(356, 76, 248, 24, 0x090b10, 0.82);
+    this.fillRect(416, 96, 128, 18, 0x1b1f27);
+
+    this.fillRect(0, 344, 960, 46, 0x0c0f16);
+    this.fillRect(0, 390, 960, 150, 0x11151d);
+    this.fillRect(154, 388, 652, 58, 0x232a35);
+    this.fillRect(210, 372, 112, 28, 0xe3b33f);
+    this.fillRect(638, 372, 112, 28, 0xe3b33f);
+    this.fillRect(248, 406, 466, 16, 0x303847);
+
+    const phoneGlow = 0.28 + Math.sin(time * 4) * 0.08;
+    this.fillRect(726, 276, 48, 72, 0x0d1117);
+    this.fillRect(733, 284, 34, 52, 0x53b6b2, phoneGlow);
   }
 
   private drawNight(time: number) {

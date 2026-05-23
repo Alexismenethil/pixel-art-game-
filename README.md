@@ -17,12 +17,14 @@ No backend is needed yet. Add one later only if the game needs cloud saves, acco
 - Home scene with chapter cards.
 - Chapters unlock after completing the previous one.
 - Story scene advances by tapping/clicking the screen, without continue buttons.
-- Multiple map locations inside one chapter: hospital, bosquete and river.
+- Choice beats can pause the story, show a custom response and add emotional story stats.
+- Multiple map locations inside one chapter: taxi, hospital, carretera, bosquete, valle, quebrada and river.
 - Animated pixel backgrounds generated in Phaser.
-- Layered PNG backgrounds for chapter 1 locations in `public/assets/chapter-1`.
+- Layered PNG backgrounds for chapter 1 locations in `public/assets/chapter-1`, including animated overlay layers.
 - Full-frame character sprite replacement for emotions. No runtime face patches.
 - Character actor system with mood states: walk, happy, nervous, surprised, shy, talking, thinking and finale.
 - Optional guides and memory markers that can be hidden for immersion.
+- Collectible memories for important details like the first smile, the purple bike and river snacks.
 - Local progress saved in `localStorage`.
 - Portrait-phone orientation hint; gameplay is designed for landscape.
 

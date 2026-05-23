@@ -34,7 +34,7 @@ export class HomeScene extends Phaser.Scene {
       .setDepth(2);
 
     this.add
-      .text(68, 136, "Elige un capitulo desbloqueado. Dentro de la historia solo toca la pantalla para avanzar.", {
+      .text(68, 136, "Elige un capitulo desbloqueado. Toca para avanzar, elige respuestas y guarda recuerdos.", {
         fontFamily: "Courier New",
         fontSize: "18px",
         color: "#b7b0a5",

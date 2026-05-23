@@ -6,10 +6,11 @@ export class CharacterActor {
   private readonly container: Phaser.GameObjects.Container;
   private readonly sprite: Phaser.GameObjects.Image;
   private readonly shadow: Phaser.GameObjects.Ellipse;
-  private readonly emote: Phaser.GameObjects.Text;
+  private readonly reactionText: Phaser.GameObjects.Text;
   private readonly actorId: ActorId;
   private mood: Mood = "idle";
   private phase: number;
+  private reaction = "";
 
   constructor(
     scene: Phaser.Scene,
@@ -24,27 +25,31 @@ export class CharacterActor {
     this.shadow = scene.add.ellipse(0, -4, 112, 18, 0x000000, 0.38);
     this.sprite = scene.add.image(0, 0, `${actorId}-neutral`).setOrigin(0.5, 1);
     this.sprite.setScale(0.46);
-    this.emote = scene.add
+    this.reactionText = scene.add
       .text(0, -206, "", {
         fontFamily: "Courier New",
-        fontSize: "26px",
+        fontSize: "21px",
         fontStyle: "bold",
         color: "#fff2dc",
         stroke: "#10131a",
-        strokeThickness: 5
+        strokeThickness: 4
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setVisible(false);
 
-    this.container = scene.add.container(x, y, [this.shadow, this.sprite, this.emote]);
+    this.container = scene.add.container(x, y, [this.shadow, this.sprite, this.reactionText]);
     this.container.setDepth(30);
   }
 
   applyBeat(state: ActorBeatState, immediate = false) {
     this.mood = state.mood;
-    this.sprite.setTexture(this.textureForMood(state.mood));
+    this.container.setVisible(state.visible ?? true);
+    this.sprite.setTexture(this.textureForState(state));
     this.sprite.setFlipX(state.facing === "left");
     this.sprite.setScale(state.scale ?? 0.46);
-    this.setEmote(state.mood);
+    this.reaction = state.reaction ?? "";
+    this.reactionText.setText(this.reaction);
+    this.reactionText.setVisible(Boolean(this.reaction) && (state.visible ?? true));
 
     const target = {
       x: state.x,
@@ -87,33 +92,30 @@ export class CharacterActor {
     this.sprite.setX(shake);
     this.sprite.setScale(0.46 * breathe);
     this.sprite.setRotation(rotate);
-    this.emote.setY(-212 + Math.sin(timeSeconds * 4 + this.phase) * 4);
+
+    if (this.reaction) {
+      const float = Math.sin(timeSeconds * 3.1 + this.phase) * 4;
+      const sparkle = 0.5 + Math.sin(timeSeconds * 4 + this.phase) * 0.1;
+      this.reactionText.setY(-212 + float);
+      this.reactionText.setAlpha(sparkle);
+      this.reactionText.setScale(1 + Math.sin(timeSeconds * 4.8 + this.phase) * 0.035);
+      this.reactionText.setRotation(Math.sin(timeSeconds * 2.2 + this.phase) * 0.025);
+    }
   }
 
-  private setEmote(mood: Mood) {
-    const emotes: Record<Mood, string> = {
-      idle: "",
-      walk: "",
-      soft: "...",
-      happy: "<3",
-      nervous: "!!",
-      surprised: "!",
-      shy: "...",
-      thinking: "?",
-      talking: "",
-      finale: "<3"
-    };
-
-    this.emote.setText(emotes[mood]);
-    this.emote.setVisible(Boolean(emotes[mood]));
+  getRenderObject() {
+    return this.container;
   }
 
-  private textureForMood(mood: Mood) {
+  private textureForState(state: ActorBeatState) {
+    if (state.pose) return `${this.actorId}-pose-${state.pose}`;
+
     const expressionByMood: Record<Mood, string> = {
       idle: "neutral",
       walk: "neutral",
       soft: "shy",
       happy: "happy",
+      laughing: "laughing",
       nervous: "scared",
       surprised: "surprised",
       shy: "shy",
@@ -122,6 +124,7 @@ export class CharacterActor {
       finale: "happy"
     };
 
-    return `${this.actorId}-${expressionByMood[mood]}`;
+    return `${this.actorId}-${expressionByMood[state.mood]}`;
   }
+
 }
