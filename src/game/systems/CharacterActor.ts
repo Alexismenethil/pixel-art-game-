@@ -108,8 +108,8 @@ export class CharacterActor {
   }
 
   private textureForState(state: ActorBeatState) {
-    if (state.pose) return `${this.actorId}-pose-${state.pose}`;
-    if (state.expression) return `${this.actorId}-${state.expression}`;
+    if (state.pose) return this.firstExistingTexture([`${this.actorId}-pose-${state.pose}`, `${this.actorId}-neutral`]);
+    if (state.expression) return this.firstExistingTexture([`${this.actorId}-${state.expression}`, `${this.actorId}-neutral`]);
 
     const expressionByMood: Record<Mood, string> = {
       idle: "neutral",
@@ -125,7 +125,11 @@ export class CharacterActor {
       finale: "happy"
     };
 
-    return `${this.actorId}-${expressionByMood[state.mood]}`;
+    return this.firstExistingTexture([`${this.actorId}-${expressionByMood[state.mood]}`, `${this.actorId}-neutral`]);
+  }
+
+  private firstExistingTexture(keys: string[]) {
+    return keys.find((key) => this.scene.textures.exists(key)) ?? keys[keys.length - 1];
   }
 
 }

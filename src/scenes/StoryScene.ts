@@ -11,6 +11,7 @@ import {
   type StoryStatId
 } from "../game/data/chapters";
 import { CharacterActor } from "../game/systems/CharacterActor";
+import { ParticleField } from "../game/systems/ParticleField";
 import { PixelMapRenderer } from "../game/systems/PixelMapRenderer";
 import {
   addMemory,
@@ -45,6 +46,14 @@ const locationLabels: Record<LocationId, string> = {
 
 const dialogueTypingDelayMs = 22;
 
+const paceDelays: Record<NonNullable<StoryBeat["pace"]>, number> = {
+  slow: 38,
+  normal: 22,
+  fast: 16,
+  urgent: 11,
+  freeze: 56
+};
+
 export class StoryScene extends Phaser.Scene {
   private chapter!: Chapter;
   private beatIndex = 0;
@@ -68,7 +77,20 @@ export class StoryScene extends Phaser.Scene {
   private vignetteBottom!: Phaser.GameObjects.Rectangle;
   private vignetteLeft!: Phaser.GameObjects.Rectangle;
   private vignetteRight!: Phaser.GameObjects.Rectangle;
+  private heartbeatOverlay!: Phaser.GameObjects.Rectangle;
+  private heartbeatIntensity = 0;
+  private heartbeatPulse = 0;
+  private bloomOverlay!: Phaser.GameObjects.Rectangle;
+  private chromaticOverlay!: Phaser.GameObjects.Rectangle;
+  private locationCard?: Phaser.GameObjects.Container;
+  private whisperText?: Phaser.GameObjects.Text;
+  private currentPace: NonNullable<StoryBeat["pace"]> = "normal";
+  private particles!: ParticleField;
+  private endCinemaActive = false;
+  private cameraTilt = 0;
+  private cameraBaseZoom = 1;
   private smsNotification?: Phaser.GameObjects.Container;
+  private pendingSmsNotificationSound = false;
   private choicesContainer!: Phaser.GameObjects.Container;
   private choiceButtons: ChoiceButton[] = [];
   private sceneProps: Phaser.GameObjects.Image[] = [];
@@ -122,11 +144,23 @@ export class StoryScene extends Phaser.Scene {
     this.triedBackgroundMusic = false;
     this.smsNotification?.destroy();
     this.smsNotification = undefined;
+    this.pendingSmsNotificationSound = false;
+    this.locationCard?.destroy();
+    this.locationCard = undefined;
+    this.whisperText?.destroy();
+    this.whisperText = undefined;
+    this.heartbeatIntensity = 0;
+    this.heartbeatPulse = 0;
+    this.currentPace = "normal";
+    this.endCinemaActive = false;
+    this.cameraTilt = 0;
+    this.cameraBaseZoom = 1;
   }
 
   create() {
     this.cameras.main.setBackgroundColor("#090b10");
     this.map = new PixelMapRenderer(this);
+    this.particles = new ParticleField(this);
     this.actors = {
       alexis: new CharacterActor(this, "alexis", 360, 430, 0),
       kiara: new CharacterActor(this, "kiara", 540, 430, 0.8)
@@ -141,6 +175,10 @@ export class StoryScene extends Phaser.Scene {
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       if (this.isTransitioning) return;
       void this.tryStartBackgroundMusic();
+      if (this.pendingSmsNotificationSound) {
+        this.pendingSmsNotificationSound = false;
+        this.playSmsNotificationSound();
+      }
       if (this.tryToggleGuides(pointer)) return;
       if (this.isTypingDialogue) {
         if (this.tryCollectMemory(pointer)) return;
@@ -167,9 +205,11 @@ export class StoryScene extends Phaser.Scene {
   update(time: number) {
     const seconds = time / 1000;
     this.map.update(seconds);
+    this.particles?.update(seconds);
     this.actors.alexis.update(seconds);
     this.actors.kiara.update(seconds);
     this.updateCameraDrift(seconds);
+    this.updateHeartbeatPulse();
 
     this.promptText.setAlpha(0.45 + Math.sin(seconds * 4) * 0.25);
 
@@ -306,6 +346,23 @@ export class StoryScene extends Phaser.Scene {
       .setOrigin(0)
       .setDepth(74)
       .setScrollFactor(0);
+
+    this.heartbeatOverlay = this.add
+      .rectangle(0, 0, 960, 540, 0xc8243b, 0)
+      .setOrigin(0)
+      .setDepth(71)
+      .setScrollFactor(0);
+    this.bloomOverlay = this.add
+      .rectangle(0, 0, 960, 540, 0xfff2dc, 0)
+      .setOrigin(0)
+      .setDepth(72)
+      .setScrollFactor(0);
+    this.chromaticOverlay = this.add
+      .rectangle(0, 0, 960, 540, 0xff7aa8, 0)
+      .setOrigin(0)
+      .setDepth(72)
+      .setScrollFactor(0)
+      .setBlendMode(Phaser.BlendModes.SCREEN);
   }
 
   private createUiCamera() {
@@ -322,10 +379,14 @@ export class StoryScene extends Phaser.Scene {
       this.vignetteLeft,
       this.vignetteRight,
       this.cinematicTopBar,
-      this.cinematicBottomBar
+      this.cinematicBottomBar,
+      this.heartbeatOverlay,
+      this.bloomOverlay,
+      this.chromaticOverlay
     ];
     const worldObjects = [
       ...this.map.getRenderObjects(),
+      this.particles.getRenderObject(),
       this.actors.alexis.getRenderObject(),
       this.actors.kiara.getRenderObject()
     ];
@@ -406,6 +467,26 @@ export class StoryScene extends Phaser.Scene {
     if (!immediate && cinematic?.shake) {
       this.cameras.main.shake(cinematic.shakeDuration ?? 220, cinematic.shake);
     }
+
+    const bloom = cinematic?.bloom ?? 0;
+    this.tweens.add({
+      targets: this.bloomOverlay,
+      alpha: bloom,
+      duration: immediate ? 0 : 640,
+      ease: "Sine.easeOut"
+    });
+
+    const chromatic = cinematic?.chromatic ? 0.18 : 0;
+    this.tweens.add({
+      targets: this.chromaticOverlay,
+      alpha: chromatic,
+      duration: immediate ? 0 : 520,
+      ease: "Sine.easeInOut"
+    });
+
+    const slowmo = cinematic?.slowmo ?? 0;
+    const targetScale = slowmo > 0 ? 1 - Math.max(0, Math.min(0.7, slowmo)) : 1;
+    this.time.timeScale = targetScale;
   }
 
   private currentBeat() {
@@ -413,10 +494,13 @@ export class StoryScene extends Phaser.Scene {
   }
 
   private applyBeat(beat: StoryBeat, immediate = false) {
+    const previousLocation = (this as { _prevLocation?: LocationId })._prevLocation;
     this.map.setLocation(beat.location);
+    this.particles.setLocation(beat.location, immediate);
     this.locationText.setText(`${this.chapter.title}  /  ${locationLabels[beat.location]}`);
     this.speakerText.setText(beat.speaker);
     this.clearChoices();
+    this.currentPace = beat.pace ?? "normal";
     this.startDialogueText(beat.text, Boolean(beat.choices?.length));
 
     this.actors.alexis.applyBeat(beat.actors.alexis, immediate);
@@ -425,6 +509,27 @@ export class StoryScene extends Phaser.Scene {
     this.updateMemoryMarker(beat, immediate);
     this.updateSmsNotification(beat, immediate);
     this.applyCinematicMood(beat, immediate);
+
+    const heartbeat = beat.cinematic?.heartbeat ?? 0;
+    this.heartbeatIntensity = heartbeat;
+    if (!immediate && heartbeat > 0) {
+      this.heartbeatPulse = Math.max(this.heartbeatPulse, 0.65);
+    }
+
+    if (previousLocation !== beat.location) {
+      const card = beat.cinematic?.locationCard;
+      this.time.delayedCall(immediate ? 380 : 0, () => {
+        if (card) {
+          this.showLocationCard(card.title, card.subtitle);
+        } else {
+          this.showLocationCard(locationLabels[beat.location]);
+        }
+      });
+    }
+
+    this.showWhisper(beat.cinematic?.whisper);
+
+    (this as { _prevLocation?: LocationId })._prevLocation = beat.location;
 
     const zoom = beat.camera?.zoom ?? 1;
     const x = beat.camera?.x ?? 480;
@@ -444,8 +549,11 @@ export class StoryScene extends Phaser.Scene {
       });
     }
 
+    this.cameraBaseZoom = zoom;
     this.cameras.main.pan(x, y, duration, "Sine.easeInOut");
     this.cameras.main.zoomTo(zoom, duration, "Sine.easeInOut");
+
+    this.cameraTilt = 0;
   }
 
   private advance() {
@@ -476,18 +584,191 @@ export class StoryScene extends Phaser.Scene {
   }
 
   private finishChapter() {
+    if (this.endCinemaActive) return;
+    this.endCinemaActive = true;
+
     const currentIndex = chapters.findIndex((chapter) => chapter.id === this.chapter.id);
     const nextChapter = chapters[currentIndex + 1];
 
     completeChapter(this.progress, this.chapter.id);
     if (nextChapter) unlockChapter(this.progress, nextChapter.id);
     saveProgress(this.progress);
-    this.fadeOutBackgroundMusic();
 
+    this.runEndCinematic(() => {
+      this.fadeOutBackgroundMusic();
+      this.isTransitioning = true;
+      this.cameras.main.fadeOut(640, 9, 11, 16);
+      this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
+        this.scene.start("HomeScene");
+      });
+    });
+  }
+
+  private runEndCinematic(onContinue: () => void) {
     this.isTransitioning = true;
-    this.cameras.main.fadeOut(420, 9, 11, 16);
-    this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
-      this.scene.start("HomeScene");
+    this.heartbeatIntensity = 0;
+    this.tweens.add({
+      targets: this.cinematicTopBar,
+      alpha: 1,
+      displayHeight: 90,
+      duration: 1400,
+      ease: "Sine.easeInOut"
+    });
+    this.tweens.add({
+      targets: this.cinematicBottomBar,
+      y: 450,
+      alpha: 1,
+      displayHeight: 90,
+      duration: 1400,
+      ease: "Sine.easeInOut"
+    });
+    this.tweens.add({
+      targets: this.warmthOverlay,
+      alpha: 0.18,
+      duration: 1400,
+      ease: "Sine.easeInOut"
+    });
+    this.tweens.add({
+      targets: [this.vignetteTop, this.vignetteBottom, this.vignetteLeft, this.vignetteRight],
+      alpha: 0.45,
+      duration: 1400,
+      ease: "Sine.easeInOut"
+    });
+    this.cameras.main.zoomTo(1.08, 1800, "Sine.easeInOut");
+
+    const chapterMemoryIds = new Set(
+      this.chapter.beats.flatMap((beat) => (beat.memory ? [beat.memory.id] : []))
+    );
+    const collected = this.progress.memories.filter((m) => chapterMemoryIds.has(m.id)).length;
+    const total = chapterMemoryIds.size;
+
+    const overlay = this.add
+      .rectangle(0, 0, 960, 540, 0x05070a, 0)
+      .setOrigin(0)
+      .setDepth(95)
+      .setScrollFactor(0);
+    this.cameras.main.ignore(overlay);
+    this.tweens.add({
+      targets: overlay,
+      alpha: 0.72,
+      duration: 1400,
+      ease: "Sine.easeInOut"
+    });
+
+    this.time.delayedCall(900, () => {
+      const credits = this.add.container(480, 270).setDepth(96).setScrollFactor(0);
+      const dedicatoria = this.add
+        .text(0, -110, "PARA KIARA", {
+          fontFamily: "Courier New",
+          fontSize: "16px",
+          color: "#c79bff",
+          fontStyle: "bold"
+        })
+        .setOrigin(0.5)
+        .setAlpha(0);
+      const heart = this.add
+        .text(0, -84, "❤", {
+          fontFamily: "Courier New",
+          fontSize: "20px",
+          color: "#ff7aa8"
+        })
+        .setOrigin(0.5)
+        .setAlpha(0);
+      const title = this.add
+        .text(0, -36, this.chapter.title, {
+          fontFamily: "Courier New",
+          fontSize: "32px",
+          fontStyle: "bold",
+          color: "#fff2dc"
+        })
+        .setOrigin(0.5)
+        .setAlpha(0);
+      const subtitle = this.add
+        .text(0, 6, `Capitulo ${this.chapter.number}`, {
+          fontFamily: "Courier New",
+          fontSize: "14px",
+          color: "#b7b0a5"
+        })
+        .setOrigin(0.5)
+        .setAlpha(0);
+      const quote = this.add
+        .text(0, 44, "Y todavia nos sigue viendo.", {
+          fontFamily: "Courier New",
+          fontSize: "16px",
+          fontStyle: "italic",
+          color: "#e79037"
+        })
+        .setOrigin(0.5)
+        .setAlpha(0);
+      const memorySummary = this.add
+        .text(0, 86, `Recuerdos guardados  ${collected} / ${total}`, {
+          fontFamily: "Courier New",
+          fontSize: "14px",
+          color: "#fff2dc"
+        })
+        .setOrigin(0.5)
+        .setAlpha(0);
+      const { ternura, nervios, sueno } = this.progress.storyStats;
+      const stats = this.add
+        .text(0, 110, `ternura ${ternura}   nervios ${nervios}   sueno ${sueno}`, {
+          fontFamily: "Courier New",
+          fontSize: "12px",
+          color: "#8fe8ff"
+        })
+        .setOrigin(0.5)
+        .setAlpha(0);
+      const continueHint = this.add
+        .text(0, 152, "toca para volver al cuarto de recuerdos", {
+          fontFamily: "Courier New",
+          fontSize: "13px",
+          color: "#b7b0a5"
+        })
+        .setOrigin(0.5)
+        .setAlpha(0);
+
+      credits.add([dedicatoria, heart, title, subtitle, quote, memorySummary, stats, continueHint]);
+      this.cameras.main.ignore(credits);
+
+      const sequence = [dedicatoria, heart, title, subtitle, quote, memorySummary, stats, continueHint];
+      sequence.forEach((item, index) => {
+        this.tweens.add({
+          targets: item,
+          alpha: item === continueHint ? 0.7 : 1,
+          y: (item as Phaser.GameObjects.Text).y - 6,
+          delay: index * 320,
+          duration: 720,
+          ease: "Sine.easeOut"
+        });
+      });
+
+      this.tweens.add({
+        targets: continueHint,
+        alpha: 0.35,
+        delay: sequence.length * 320 + 900,
+        duration: 900,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut"
+      });
+
+      this.input.once("pointerdown", () => {
+        this.tweens.add({
+          targets: [overlay, credits],
+          alpha: 0,
+          duration: 600,
+          ease: "Sine.easeIn"
+        });
+        this.time.delayedCall(620, () => onContinue());
+      });
+      this.input.keyboard?.once("keydown-SPACE", () => {
+        this.tweens.add({
+          targets: [overlay, credits],
+          alpha: 0,
+          duration: 600,
+          ease: "Sine.easeIn"
+        });
+        this.time.delayedCall(620, () => onContinue());
+      });
     });
   }
 
@@ -731,6 +1012,106 @@ export class StoryScene extends Phaser.Scene {
     return true;
   }
 
+  private updateHeartbeatPulse() {
+    this.heartbeatPulse = Math.max(0, this.heartbeatPulse - 0.025);
+    const baseGlow = this.heartbeatIntensity * 0.1;
+    const pulseGlow = this.heartbeatPulse * 0.14;
+    this.heartbeatOverlay.setAlpha(Math.min(0.4, baseGlow + pulseGlow));
+  }
+
+  private showLocationCard(title: string, subtitle?: string) {
+    this.locationCard?.destroy();
+    const card = this.add.container(480, 96).setDepth(96).setScrollFactor(0);
+    const bg = this.add
+      .rectangle(0, 0, 420, 64, 0x05070a, 0.62)
+      .setOrigin(0.5)
+      .setStrokeStyle(1, 0xfff2dc, 0.32);
+    const line = this.add.rectangle(-180, 0, 32, 2, 0xe79037, 0.9).setOrigin(0, 0.5);
+    const lineRight = this.add.rectangle(148, 0, 32, 2, 0xe79037, 0.9).setOrigin(0, 0.5);
+    const titleText = this.add
+      .text(0, subtitle ? -8 : 0, title.toUpperCase(), {
+        fontFamily: "Courier New",
+        fontSize: "18px",
+        fontStyle: "bold",
+        color: "#fff2dc"
+      })
+      .setOrigin(0.5);
+    card.add([bg, line, lineRight, titleText]);
+    if (subtitle) {
+      const subtitleText = this.add
+        .text(0, 14, subtitle, {
+          fontFamily: "Courier New",
+          fontSize: "12px",
+          color: "#b7b0a5"
+        })
+        .setOrigin(0.5);
+      card.add(subtitleText);
+    }
+    card.setAlpha(0);
+    this.cameras.main.ignore(card);
+    this.locationCard = card;
+    this.tweens.add({
+      targets: card,
+      alpha: 1,
+      y: 110,
+      duration: 420,
+      ease: "Sine.easeOut"
+    });
+    this.tweens.add({
+      targets: card,
+      alpha: 0,
+      y: 96,
+      delay: 1700,
+      duration: 520,
+      ease: "Sine.easeIn",
+      onComplete: () => {
+        if (this.locationCard === card) {
+          this.locationCard = undefined;
+        }
+        card.destroy();
+      }
+    });
+  }
+
+  private showWhisper(text?: string) {
+    this.whisperText?.destroy();
+    this.whisperText = undefined;
+    if (!text) return;
+    const whisper = this.add
+      .text(480, 196, text, {
+        fontFamily: "Courier New",
+        fontSize: "15px",
+        fontStyle: "italic",
+        color: "#f2e7ff",
+        stroke: "#10131a",
+        strokeThickness: 3
+      })
+      .setOrigin(0.5)
+      .setDepth(94)
+      .setScrollFactor(0)
+      .setAlpha(0);
+    this.cameras.main.ignore(whisper);
+    this.whisperText = whisper;
+    this.tweens.add({
+      targets: whisper,
+      alpha: 0.85,
+      y: 184,
+      duration: 600,
+      ease: "Sine.easeOut"
+    });
+    this.tweens.add({
+      targets: whisper,
+      alpha: 0,
+      delay: 2400,
+      duration: 700,
+      ease: "Sine.easeIn",
+      onComplete: () => {
+        if (this.whisperText === whisper) this.whisperText = undefined;
+        whisper.destroy();
+      }
+    });
+  }
+
   private flashToast(message: string) {
     const toast = this.add
       .text(480, 102, message, {
@@ -765,9 +1146,12 @@ export class StoryScene extends Phaser.Scene {
     this.scenePropsSignature = signature;
 
     props.forEach((propData) => {
+      const texture = this.resolveScenePropTexture(propData.texture);
+      if (!texture) return;
+
       const alpha = propData.alpha ?? 1;
       const prop = this.add
-        .image(propData.x, propData.y, propData.texture)
+        .image(propData.x, propData.y, texture)
         .setOrigin(0.5, 1)
         .setDepth(propData.depth ?? 31)
         .setScale(propData.scale ?? 0.46)
@@ -788,6 +1172,35 @@ export class StoryScene extends Phaser.Scene {
         });
       }
     });
+  }
+
+  private resolveScenePropTexture(texture: string) {
+    if (this.textures.exists(texture)) return texture;
+
+    const fallbacks =
+      texture.startsWith("couple-walking-side-")
+        ? ["couple-walking-back", "alexis-pose-walking-side"]
+        : texture.startsWith("couple-walking-back-")
+          ? ["couple-walking-back", "alexis-pose-back"]
+          : texture.startsWith("couple-valley-back-")
+            ? ["couple-walking-back", "alexis-pose-back"]
+            : texture.startsWith("couple-river-sitting-") || texture.startsWith("couple-almost-kiss-")
+              ? ["couple-sitting-together", "alexis-pose-sitting"]
+              : texture === "couple-kiss-sitting"
+                ? ["couple-kiss", "couple-sitting-together"]
+                : texture.startsWith("couple-")
+                  ? ["couple-sitting-together", "couple-walking-back"]
+                  : texture.startsWith("npc-")
+                    ? ["npc-taxi-driver"]
+                    : texture.startsWith("prop-")
+                      ? ["prop-purple-moto"]
+                      : [];
+
+    const fallback = fallbacks.find((key) => this.textures.exists(key));
+    if (fallback) return fallback;
+
+    console.warn(`No se encontro la textura "${texture}" ni una imagen de respaldo.`);
+    return undefined;
   }
 
   private async tryStartBackgroundMusic() {
@@ -858,6 +1271,7 @@ export class StoryScene extends Phaser.Scene {
   private updateSmsNotification(beat: StoryBeat, immediate = false) {
     this.smsNotification?.destroy();
     this.smsNotification = undefined;
+    this.pendingSmsNotificationSound = false;
 
     const isSms = beat.location === "taxi" && beat.speaker === "Kiara";
     if (!isSms) return;
@@ -916,9 +1330,11 @@ export class StoryScene extends Phaser.Scene {
 
     if (immediate) {
       notification.setX(606);
+      this.pendingSmsNotificationSound = true;
       return;
     }
 
+    this.pendingSmsNotificationSound = false;
     this.playSmsNotificationSound();
     this.tweens.add({
       targets: notification,
@@ -940,12 +1356,12 @@ export class StoryScene extends Phaser.Scene {
     const context = this.createAudioContext();
     if (!context) return;
 
-    const output = this.createEchoBus(context, 0.62, 0.09, 0.08, 0.1);
+    const output = this.createEchoBus(context, 0.86, 0.09, 0.08, 0.12);
     const now = context.currentTime;
 
-    this.scheduleTone(context, output, 880, now, 0.16, 0.03, "sine");
-    this.scheduleTone(context, output, 1318.51, now + 0.09, 0.18, 0.026, "sine");
-    this.scheduleTone(context, output, 1760, now + 0.19, 0.2, 0.018, "triangle");
+    this.scheduleTone(context, output, 880, now, 0.16, 0.052, "sine");
+    this.scheduleTone(context, output, 1318.51, now + 0.09, 0.18, 0.046, "sine");
+    this.scheduleTone(context, output, 1760, now + 0.19, 0.2, 0.032, "triangle");
 
     window.setTimeout(() => {
       void context.close();
@@ -956,38 +1372,38 @@ export class StoryScene extends Phaser.Scene {
     const context = this.createAudioContext();
     if (!context) return;
 
-    const output = this.createEchoBus(context, 0.68, 0.18, 0.16, 0.2);
+    const output = this.createEchoBus(context, 0.9, 0.18, 0.16, 0.22);
     const now = context.currentTime;
 
     if (statId === "ternura") {
       [
-        { frequency: 659.25, delay: 0, volume: 0.026 },
-        { frequency: 783.99, delay: 0.08, volume: 0.024 },
-        { frequency: 1046.5, delay: 0.18, volume: 0.02 }
+        { frequency: 659.25, delay: 0, volume: 0.044 },
+        { frequency: 783.99, delay: 0.08, volume: 0.038 },
+        { frequency: 1046.5, delay: 0.18, volume: 0.032 }
       ].forEach(({ frequency, delay, volume }) => {
         this.scheduleTone(context, output, frequency, now + delay, 0.42, volume, "sine");
       });
     } else if (statId === "nervios") {
       [
-        { frequency: 466.16, delay: 0, volume: 0.02 },
-        { frequency: 440, delay: 0.06, volume: 0.018 },
-        { frequency: 523.25, delay: 0.14, volume: 0.016 },
-        { frequency: 493.88, delay: 0.2, volume: 0.012 }
+        { frequency: 466.16, delay: 0, volume: 0.036 },
+        { frequency: 440, delay: 0.06, volume: 0.032 },
+        { frequency: 523.25, delay: 0.14, volume: 0.028 },
+        { frequency: 493.88, delay: 0.2, volume: 0.022 }
       ].forEach(({ frequency, delay, volume }) => {
         this.scheduleTone(context, output, frequency, now + delay, 0.18, volume, "triangle");
       });
-      this.scheduleNoise(context, output, now, 0.22, 0.004, 1600, "highpass");
+      this.scheduleNoise(context, output, now, 0.22, 0.006, 1600, "highpass");
     } else {
       [
-        { frequency: 523.25, delay: 0, volume: 0.018 },
-        { frequency: 659.25, delay: 0.11, volume: 0.02 },
-        { frequency: 783.99, delay: 0.24, volume: 0.018 },
-        { frequency: 987.77, delay: 0.39, volume: 0.016 },
-        { frequency: 1174.66, delay: 0.56, volume: 0.012 }
+        { frequency: 523.25, delay: 0, volume: 0.032 },
+        { frequency: 659.25, delay: 0.11, volume: 0.036 },
+        { frequency: 783.99, delay: 0.24, volume: 0.032 },
+        { frequency: 987.77, delay: 0.39, volume: 0.028 },
+        { frequency: 1174.66, delay: 0.56, volume: 0.022 }
       ].forEach(({ frequency, delay, volume }) => {
         this.scheduleTone(context, output, frequency, now + delay, 0.58, volume, "sine");
       });
-      this.scheduleTone(context, output, 196, now, 1.1, 0.008, "triangle");
+      this.scheduleTone(context, output, 196, now, 1.1, 0.014, "triangle");
     }
 
     window.setTimeout(() => {
@@ -1078,10 +1494,10 @@ export class StoryScene extends Phaser.Scene {
     const wet = context.createGain();
     const now = context.currentTime;
 
-    output.gain.setValueAtTime(0.58, now);
+    output.gain.setValueAtTime(0.78, now);
     delay.delayTime.setValueAtTime(0.16, now);
     feedback.gain.setValueAtTime(0.1, now);
-    wet.gain.setValueAtTime(0.2, now);
+    wet.gain.setValueAtTime(0.24, now);
     output.connect(context.destination);
     output.connect(delay);
     delay.connect(feedback);
@@ -1089,10 +1505,10 @@ export class StoryScene extends Phaser.Scene {
     delay.connect(wet);
     wet.connect(context.destination);
 
-    this.scheduleTone(context, output, 659.25, now, 0.34, 0.016, "triangle");
-    this.scheduleTone(context, output, 880, now + 0.06, 0.34, 0.022, "sine");
-    this.scheduleTone(context, output, 1174.66, now + 0.16, 0.42, 0.018, "sine");
-    this.scheduleTone(context, output, 1567.98, now + 0.27, 0.3, 0.011, "triangle");
+    this.scheduleTone(context, output, 659.25, now, 0.34, 0.028, "triangle");
+    this.scheduleTone(context, output, 880, now + 0.06, 0.34, 0.038, "sine");
+    this.scheduleTone(context, output, 1174.66, now + 0.16, 0.42, 0.032, "sine");
+    this.scheduleTone(context, output, 1567.98, now + 0.27, 0.3, 0.02, "triangle");
 
     window.setTimeout(() => {
       void context.close();
@@ -1109,10 +1525,10 @@ export class StoryScene extends Phaser.Scene {
     const wet = context.createGain();
     const now = context.currentTime;
 
-    output.gain.setValueAtTime(0.74, now);
+    output.gain.setValueAtTime(0.92, now);
     delay.delayTime.setValueAtTime(0.21, now);
     feedback.gain.setValueAtTime(0.2, now);
-    wet.gain.setValueAtTime(0.26, now);
+    wet.gain.setValueAtTime(0.3, now);
 
     output.connect(context.destination);
     output.connect(delay);
@@ -1122,13 +1538,13 @@ export class StoryScene extends Phaser.Scene {
     wet.connect(context.destination);
 
     [
-      { frequency: 392, delay: 0, volume: 0.016, duration: 0.9, type: "triangle" as OscillatorType },
-      { frequency: 523.25, delay: 0.02, volume: 0.032, duration: 0.62, type: "sine" as OscillatorType },
-      { frequency: 659.25, delay: 0.1, volume: 0.038, duration: 0.62, type: "sine" as OscillatorType },
-      { frequency: 783.99, delay: 0.2, volume: 0.04, duration: 0.6, type: "sine" as OscillatorType },
-      { frequency: 1046.5, delay: 0.34, volume: 0.032, duration: 0.54, type: "triangle" as OscillatorType },
-      { frequency: 1318.51, delay: 0.47, volume: 0.024, duration: 0.46, type: "sine" as OscillatorType },
-      { frequency: 1567.98, delay: 0.58, volume: 0.018, duration: 0.34, type: "sine" as OscillatorType }
+      { frequency: 392, delay: 0, volume: 0.026, duration: 0.9, type: "triangle" as OscillatorType },
+      { frequency: 523.25, delay: 0.02, volume: 0.048, duration: 0.62, type: "sine" as OscillatorType },
+      { frequency: 659.25, delay: 0.1, volume: 0.056, duration: 0.62, type: "sine" as OscillatorType },
+      { frequency: 783.99, delay: 0.2, volume: 0.058, duration: 0.6, type: "sine" as OscillatorType },
+      { frequency: 1046.5, delay: 0.34, volume: 0.046, duration: 0.54, type: "triangle" as OscillatorType },
+      { frequency: 1318.51, delay: 0.47, volume: 0.034, duration: 0.46, type: "sine" as OscillatorType },
+      { frequency: 1567.98, delay: 0.58, volume: 0.026, duration: 0.34, type: "sine" as OscillatorType }
     ].forEach(({ frequency, delay, volume, duration, type }) => {
       this.scheduleTone(context, output, frequency, now + delay, duration, volume, type);
     });
@@ -1138,7 +1554,7 @@ export class StoryScene extends Phaser.Scene {
       { frequency: 2093, delay: 0.42 },
       { frequency: 2637.02, delay: 0.64 }
     ].forEach(({ frequency, delay }) => {
-      this.scheduleTone(context, output, frequency, now + delay, 0.2, 0.01, "triangle");
+      this.scheduleTone(context, output, frequency, now + delay, 0.2, 0.016, "triangle");
     });
 
     window.setTimeout(() => {
@@ -1279,8 +1695,9 @@ export class StoryScene extends Phaser.Scene {
 
     let index = 0;
     this.promptText.setText("toca para completar");
+    const delay = paceDelays[this.currentPace] ?? dialogueTypingDelayMs;
     this.dialogueTimer = this.time.addEvent({
-      delay: dialogueTypingDelayMs,
+      delay,
       loop: true,
       callback: () => {
         index += 1;

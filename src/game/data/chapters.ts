@@ -75,7 +75,16 @@ export type StoryBeat = {
     flash?: boolean;
     shake?: number;
     shakeDuration?: number;
+    heartbeat?: number;
+    intimate?: boolean;
+    bloom?: number;
+    chromatic?: boolean;
+    slowmo?: number;
+    locationCard?: { title: string; subtitle?: string };
+    whisper?: string;
+    holdMs?: number;
   };
+  pace?: "slow" | "normal" | "fast" | "urgent" | "freeze";
   memory?: {
     id: string;
     label: string;
@@ -129,7 +138,13 @@ export const chapters: Chapter[] = [
         },
         props: [{ texture: "npc-taxi-driver", x: 244, y: 386, scale: 0.5, depth: 29, alpha: 0.96 }],
         camera: { zoom: 1.08, x: 356, y: 292, duration: 820, driftX: 10, driftY: 3, driftSpeed: 1.15 },
-        cinematic: { vignette: 0.08, warmth: 0.02 }
+        cinematic: {
+          vignette: 0.08,
+          warmth: 0.02,
+          heartbeat: 0.35,
+          locationCard: { title: "Taxi", subtitle: "Julio · tarde · ya muy tarde" }
+        },
+        pace: "fast"
       },
       {
         id: "taxi-message",
@@ -142,7 +157,8 @@ export const chapters: Chapter[] = [
         },
         props: [{ texture: "npc-taxi-driver", x: 244, y: 386, scale: 0.5, depth: 29, alpha: 0.96 }],
         camera: { zoom: 1.12, x: 354, y: 294, duration: 720, driftX: 8, driftY: 2, driftSpeed: 1.2 },
-        cinematic: { vignette: 0.1, shake: 0.0015, shakeDuration: 180 }
+        cinematic: { vignette: 0.1, shake: 0.0015, shakeDuration: 180, heartbeat: 0.55 },
+        pace: "urgent"
       },
       {
         id: "taxi-pressure",
@@ -155,7 +171,8 @@ export const chapters: Chapter[] = [
         },
         props: [{ texture: "npc-taxi-driver", x: 244, y: 386, scale: 0.5, depth: 29, alpha: 0.96 }],
         camera: { zoom: 1.12, x: 354, y: 294, duration: 680, driftX: 6, driftY: 2, driftSpeed: 1.1 },
-        cinematic: { vignette: 0.08 },
+        cinematic: { vignette: 0.08, heartbeat: 0.5 },
+        pace: "fast",
         choices: [
           {
             id: "taxi-special",
@@ -231,7 +248,12 @@ export const chapters: Chapter[] = [
           kiara: { x: 624, y: 378, mood: "shy", facing: "left", visible: false }
         },
         camera: { zoom: 1.08, x: 448, y: 294, duration: 780, driftX: 2, driftY: 1, driftSpeed: 0.6 },
-        cinematic: { warmth: 0.02 }
+        cinematic: {
+          warmth: 0.02,
+          heartbeat: 0.4,
+          locationCard: { title: "Hospital", subtitle: "Aqui empieza todo" }
+        },
+        pace: "slow"
       },
       {
         id: "kiara-reveal",
@@ -244,7 +266,17 @@ export const chapters: Chapter[] = [
           kiara: { x: 568, y: 378, mood: "soft", expression: "gentle-smile", facing: "left" }
         },
         camera: { zoom: 1.2, x: 472, y: 294, duration: 1100, driftX: 2, driftY: 1, driftSpeed: 0.48 },
-        cinematic: { letterbox: 24, warmth: 0.06, vignette: 0.12, flash: true }
+        cinematic: {
+          letterbox: 24,
+          warmth: 0.06,
+          vignette: 0.12,
+          flash: true,
+          heartbeat: 0.65,
+          bloom: 0.12,
+          whisper: "el tiempo se detuvo un segundo",
+          slowmo: 0.35
+        },
+        pace: "slow"
       },
       {
         id: "hospital-nerves",
@@ -257,7 +289,8 @@ export const chapters: Chapter[] = [
           kiara: { x: 568, y: 378, mood: "shy", expression: "close-nervous", facing: "left" }
         },
         camera: { zoom: 1.18, x: 472, y: 294, duration: 900, driftX: 1.5, driftY: 1, driftSpeed: 0.45 },
-        cinematic: { letterbox: 22, warmth: 0.04, vignette: 0.1 }
+        cinematic: { letterbox: 22, warmth: 0.04, vignette: 0.1, heartbeat: 0.55 },
+        pace: "slow"
       },
       {
         id: "hospital-unsaid",
@@ -349,7 +382,14 @@ export const chapters: Chapter[] = [
           y: 314
         },
         camera: { zoom: 1.19, x: 468, y: 298, duration: 960, driftX: 2, driftY: 1, driftSpeed: 0.48 },
-        cinematic: { letterbox: 24, warmth: 0.06, vignette: 0.08 }
+        cinematic: {
+          letterbox: 24,
+          warmth: 0.06,
+          vignette: 0.08,
+          bloom: 0.08,
+          whisper: "guardalo. este momento ya vale para siempre."
+        },
+        pace: "slow"
       },
       {
         id: "hospital-first-step-together",
@@ -386,7 +426,8 @@ export const chapters: Chapter[] = [
           kiara: { x: 462, y: 378, mood: "walk", facing: "right", pose: "walking-side", visible: false }
         },
         props: [{ texture: "couple-walking-side-01", x: 480, y: 408, scale: 0.5, depth: 32, float: 0.8 }],
-        camera: { zoom: 1, x: 510, y: 292, duration: 900, driftX: 14, driftY: 3, driftSpeed: 0.65 }
+        camera: { zoom: 1, x: 510, y: 292, duration: 900, driftX: 14, driftY: 3, driftSpeed: 0.65 },
+        cinematic: { locationCard: { title: "Camino", subtitle: "hacia ningun lado en particular" } }
       },
       {
         id: "road-little-talks",
@@ -462,7 +503,12 @@ export const chapters: Chapter[] = [
         },
         props: [{ texture: "couple-walking-back-01", x: 480, y: 408, scale: 0.47, depth: 32, float: 1 }],
         camera: { zoom: 1.04, x: 492, y: 286, duration: 1100, driftX: 18, driftY: 5, driftSpeed: 0.38 },
-        cinematic: { letterbox: 18, warmth: 0.03, vignette: 0.04 }
+        cinematic: {
+          letterbox: 18,
+          warmth: 0.03,
+          vignette: 0.04,
+          locationCard: { title: "Campo", subtitle: "sin plan, con compania" }
+        }
       },
       {
         id: "road-without-map-2",
@@ -561,7 +607,14 @@ export const chapters: Chapter[] = [
         },
         props: [{ texture: "couple-valley-back-wide", x: 480, y: 390, scale: 0.5, depth: 32, float: 0.8 }],
         camera: { zoom: 1, x: 486, y: 258, duration: 1200, driftX: 22, driftY: 6, driftSpeed: 0.3 },
-        cinematic: { letterbox: 20, warmth: 0.04, vignette: 0.05 }
+        cinematic: {
+          letterbox: 20,
+          warmth: 0.04,
+          vignette: 0.05,
+          locationCard: { title: "Valle", subtitle: "vista desde la cima" },
+          bloom: 0.06
+        },
+        pace: "slow"
       },
       {
         id: "valley-wide-view",
@@ -720,7 +773,12 @@ export const chapters: Chapter[] = [
         },
         props: [{ texture: "couple-walking-back-03", x: 482, y: 410, scale: 0.47, depth: 32, float: 1 }],
         camera: { zoom: 1, x: 502, y: 292, duration: 1200, driftX: 22, driftY: 5, driftSpeed: 0.32 },
-        cinematic: { letterbox: 18, warmth: 0.03, vignette: 0.04 }
+        cinematic: {
+          letterbox: 18,
+          warmth: 0.03,
+          vignette: 0.04,
+          locationCard: { title: "Quebrada", subtitle: "el camino baja despacio" }
+        }
       },
       {
         id: "downhill-careful",
@@ -801,7 +859,14 @@ export const chapters: Chapter[] = [
         },
         props: [{ texture: "couple-walking-side-04", x: 486, y: 408, scale: 0.5, depth: 32, float: 0.8 }],
         camera: { zoom: 1, x: 486, y: 292, duration: 1400, driftX: 24, driftY: 6, driftSpeed: 0.24 },
-        cinematic: { letterbox: 18, warmth: 0.04, vignette: 0.04 }
+        cinematic: {
+          letterbox: 18,
+          warmth: 0.04,
+          vignette: 0.04,
+          locationCard: { title: "Rio", subtitle: "donde se quedan los recuerdos" },
+          bloom: 0.05
+        },
+        pace: "slow"
       },
       {
         id: "river-first-breath",
@@ -840,7 +905,15 @@ export const chapters: Chapter[] = [
         },
         props: [{ texture: "couple-river-sitting-normal", x: 480, y: 384, scale: 0.52, depth: 32, float: 1.2 }],
         camera: { zoom: 1.12, x: 484, y: 292, duration: 1100, driftX: 4, driftY: 2, driftSpeed: 0.32 },
-        cinematic: { letterbox: 24, warmth: 0.05, vignette: 0.07 }
+        cinematic: {
+          letterbox: 24,
+          warmth: 0.05,
+          vignette: 0.07,
+          heartbeat: 0.3,
+          intimate: true,
+          whisper: "respira despacio"
+        },
+        pace: "slow"
       },
       {
         id: "river-reader-breath",
@@ -938,7 +1011,15 @@ export const chapters: Chapter[] = [
         },
         props: [{ texture: "couple-river-sitting-close", x: 480, y: 384, scale: 0.52, depth: 32, float: 1.2 }],
         camera: { zoom: 1.14, x: 470, y: 292, duration: 1200, driftX: 2, driftY: 1, driftSpeed: 0.3 },
-        cinematic: { letterbox: 24, warmth: 0.06, vignette: 0.08 }
+        cinematic: {
+          letterbox: 24,
+          warmth: 0.06,
+          vignette: 0.08,
+          heartbeat: 0.45,
+          intimate: true,
+          whisper: "no la apartes la mirada"
+        },
+        pace: "slow"
       },
       {
         id: "river-not-anywhere-else",
@@ -952,7 +1033,15 @@ export const chapters: Chapter[] = [
         },
         props: [{ texture: "couple-river-sitting-close", x: 480, y: 384, scale: 0.52, depth: 32, float: 1.2 }],
         camera: { zoom: 1.16, x: 470, y: 292, duration: 1250, driftX: 2, driftY: 1, driftSpeed: 0.28 },
-        cinematic: { letterbox: 26, warmth: 0.07, vignette: 0.09 }
+        cinematic: {
+          letterbox: 26,
+          warmth: 0.07,
+          vignette: 0.09,
+          heartbeat: 0.55,
+          intimate: true,
+          bloom: 0.05
+        },
+        pace: "slow"
       },
       {
         id: "river-little-distance",
@@ -966,7 +1055,16 @@ export const chapters: Chapter[] = [
         },
         props: [{ texture: "couple-river-sitting-close", x: 480, y: 384, scale: 0.52, depth: 32, float: 1.2 }],
         camera: { zoom: 1.16, x: 468, y: 292, duration: 1300, driftX: 1, driftY: 1, driftSpeed: 0.24 },
-        cinematic: { letterbox: 28, warmth: 0.07, vignette: 0.1 }
+        cinematic: {
+          letterbox: 28,
+          warmth: 0.07,
+          vignette: 0.1,
+          heartbeat: 0.6,
+          intimate: true,
+          bloom: 0.06,
+          whisper: "no apartes la mirada"
+        },
+        pace: "slow"
       },
       {
         id: "river-silence",
@@ -979,7 +1077,16 @@ export const chapters: Chapter[] = [
         },
         props: [{ texture: "couple-river-sitting-close", x: 480, y: 384, scale: 0.52, depth: 32, float: 1.2 }],
         camera: { zoom: 1.18, x: 464, y: 294, duration: 1300, driftX: 1, driftY: 1, driftSpeed: 0.23 },
-        cinematic: { letterbox: 30, warmth: 0.08, vignette: 0.11 },
+        cinematic: {
+          letterbox: 30,
+          warmth: 0.08,
+          vignette: 0.11,
+          heartbeat: 0.7,
+          intimate: true,
+          bloom: 0.08,
+          chromatic: true
+        },
+        pace: "slow",
         choices: [
           {
             id: "kiss-closer",
@@ -1016,7 +1123,18 @@ export const chapters: Chapter[] = [
         },
         props: [{ texture: "couple-almost-kiss-01", x: 480, y: 384, scale: 0.54, depth: 32, float: 0.8 }],
         camera: { zoom: 1.22, x: 464, y: 294, duration: 1400, driftX: 0.6, driftY: 0.6, driftSpeed: 0.2 },
-        cinematic: { letterbox: 34, warmth: 0.09, vignette: 0.12 }
+        cinematic: {
+          letterbox: 34,
+          warmth: 0.09,
+          vignette: 0.12,
+          heartbeat: 0.8,
+          intimate: true,
+          bloom: 0.1,
+          chromatic: true,
+          slowmo: 0.18,
+          whisper: "el mundo se hizo pequenito"
+        },
+        pace: "slow"
       },
       {
         id: "almost-kiss-world",
@@ -1030,7 +1148,17 @@ export const chapters: Chapter[] = [
         },
         props: [{ texture: "couple-almost-kiss-02", x: 480, y: 384, scale: 0.54, depth: 32, float: 0.8 }],
         camera: { zoom: 1.24, x: 464, y: 294, duration: 1500, driftX: 0.4, driftY: 0.4, driftSpeed: 0.18 },
-        cinematic: { letterbox: 36, warmth: 0.1, vignette: 0.13 }
+        cinematic: {
+          letterbox: 36,
+          warmth: 0.1,
+          vignette: 0.13,
+          heartbeat: 0.88,
+          intimate: true,
+          bloom: 0.12,
+          chromatic: true,
+          slowmo: 0.28
+        },
+        pace: "slow"
       },
       {
         id: "almost-kiss-reader-hold",
@@ -1044,7 +1172,18 @@ export const chapters: Chapter[] = [
         },
         props: [{ texture: "couple-almost-kiss-03", x: 480, y: 384, scale: 0.54, depth: 32, float: 0.8 }],
         camera: { zoom: 1.25, x: 464, y: 294, duration: 1500, driftX: 0.35, driftY: 0.35, driftSpeed: 0.16 },
-        cinematic: { letterbox: 38, warmth: 0.11, vignette: 0.14 }
+        cinematic: {
+          letterbox: 38,
+          warmth: 0.11,
+          vignette: 0.14,
+          heartbeat: 0.95,
+          intimate: true,
+          bloom: 0.14,
+          chromatic: true,
+          slowmo: 0.45,
+          whisper: "..."
+        },
+        pace: "freeze"
       },
       {
         id: "first-kiss",
@@ -1058,7 +1197,21 @@ export const chapters: Chapter[] = [
         },
         props: [{ texture: "couple-kiss-sitting", x: 480, y: 384, scale: 0.56, depth: 32, float: 0.7 }],
         camera: { zoom: 1.3, x: 456, y: 292, duration: 1550, driftX: 0.25, driftY: 0.25, driftSpeed: 0.14 },
-        cinematic: { letterbox: 42, warmth: 0.12, vignette: 0.12, flash: true, shake: 0.0015, shakeDuration: 260 }
+        cinematic: {
+          letterbox: 42,
+          warmth: 0.12,
+          vignette: 0.12,
+          flash: true,
+          shake: 0.0015,
+          shakeDuration: 260,
+          heartbeat: 0.4,
+          intimate: true,
+          bloom: 0.22,
+          chromatic: true,
+          slowmo: 0.55,
+          whisper: "el mundo prendio una luz solo para ustedes"
+        },
+        pace: "slow"
       },
       {
         id: "first-kiss-universes",
@@ -1072,7 +1225,16 @@ export const chapters: Chapter[] = [
         },
         props: [{ texture: "couple-kiss-sitting", x: 480, y: 384, scale: 0.56, depth: 32, float: 0.7 }],
         camera: { zoom: 1.34, x: 456, y: 292, duration: 1500, driftX: 0.2, driftY: 0.2, driftSpeed: 0.12 },
-        cinematic: { letterbox: 44, warmth: 0.13, vignette: 0.1 }
+        cinematic: {
+          letterbox: 44,
+          warmth: 0.13,
+          vignette: 0.1,
+          intimate: true,
+          bloom: 0.18,
+          chromatic: true,
+          slowmo: 0.4
+        },
+        pace: "slow"
       },
       {
         id: "first-kiss-heaven",
@@ -1086,7 +1248,16 @@ export const chapters: Chapter[] = [
         },
         props: [{ texture: "couple-kiss-sitting", x: 480, y: 384, scale: 0.56, depth: 32, float: 0.7 }],
         camera: { zoom: 1.36, x: 456, y: 292, duration: 1450, driftX: 0.2, driftY: 0.2, driftSpeed: 0.12 },
-        cinematic: { letterbox: 44, warmth: 0.14, vignette: 0.08 }
+        cinematic: {
+          letterbox: 44,
+          warmth: 0.14,
+          vignette: 0.08,
+          intimate: true,
+          bloom: 0.16,
+          chromatic: true,
+          slowmo: 0.32
+        },
+        pace: "slow"
       },
       {
         id: "after-kiss",
@@ -1098,7 +1269,15 @@ export const chapters: Chapter[] = [
           kiara: { x: 526, y: 378, mood: "shy", expression: "after-kiss-blush", facing: "left", reaction: "<3" }
         },
         camera: { zoom: 1.18, x: 456, y: 292, duration: 1300, driftX: 1, driftY: 1, driftSpeed: 0.24 },
-        cinematic: { letterbox: 30, warmth: 0.09, vignette: 0.08 }
+        cinematic: {
+          letterbox: 30,
+          warmth: 0.09,
+          vignette: 0.08,
+          intimate: true,
+          bloom: 0.08,
+          whisper: "no hicieron falta palabras"
+        },
+        pace: "slow"
       },
       {
         id: "chapter-1-end",
@@ -1110,7 +1289,15 @@ export const chapters: Chapter[] = [
           kiara: { x: 526, y: 378, mood: "finale", facing: "left" }
         },
         camera: { zoom: 1.02, x: 478, y: 288, duration: 1400, driftX: 12, driftY: 4, driftSpeed: 0.24 },
-        cinematic: { letterbox: 20, warmth: 0.06, vignette: 0.05 },
+        cinematic: {
+          letterbox: 20,
+          warmth: 0.06,
+          vignette: 0.05,
+          intimate: true,
+          bloom: 0.06,
+          whisper: "fin del capitulo 1"
+        },
+        pace: "slow",
         completeChapter: true
       }
     ]
