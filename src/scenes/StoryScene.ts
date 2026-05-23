@@ -7,7 +7,8 @@ import {
   type LocationId,
   type SceneProp,
   type StoryBeat,
-  type StoryChoice
+  type StoryChoice,
+  type StoryStatId
 } from "../game/data/chapters";
 import { CharacterActor } from "../game/systems/CharacterActor";
 import { PixelMapRenderer } from "../game/systems/PixelMapRenderer";
@@ -58,6 +59,7 @@ export class StoryScene extends Phaser.Scene {
   private promptText!: Phaser.GameObjects.Text;
   private locationText!: Phaser.GameObjects.Text;
   private scoreText!: Phaser.GameObjects.Text;
+  private memoryCounterText!: Phaser.GameObjects.Text;
   private guideToggle!: Phaser.GameObjects.Text;
   private cinematicTopBar!: Phaser.GameObjects.Rectangle;
   private cinematicBottomBar!: Phaser.GameObjects.Rectangle;
@@ -66,11 +68,14 @@ export class StoryScene extends Phaser.Scene {
   private vignetteBottom!: Phaser.GameObjects.Rectangle;
   private vignetteLeft!: Phaser.GameObjects.Rectangle;
   private vignetteRight!: Phaser.GameObjects.Rectangle;
+  private smsNotification?: Phaser.GameObjects.Container;
   private choicesContainer!: Phaser.GameObjects.Container;
   private choiceButtons: ChoiceButton[] = [];
   private sceneProps: Phaser.GameObjects.Image[] = [];
   private scenePropsSignature = "";
   private memoryMarker?: Phaser.GameObjects.Container;
+  private memoryMarkerBaseY = 0;
+  private memoryMarkerBaseScale = 0.82;
   private dialogueTimer?: Phaser.Time.TimerEvent;
   private fullDialogueText = "";
   private isTypingDialogue = false;
@@ -79,6 +84,8 @@ export class StoryScene extends Phaser.Scene {
   private cameraDrift = { x: 0, y: 0, speed: 0.55 };
   private cameraSettling = false;
   private cameraSettleTimer?: Phaser.Time.TimerEvent;
+  private backgroundMusic?: HTMLAudioElement;
+  private triedBackgroundMusic = false;
   private awaitingChoice = false;
   private guidesVisible = true;
   private isTransitioning = false;
@@ -110,6 +117,11 @@ export class StoryScene extends Phaser.Scene {
     this.cameraTarget = { x: 480, y: 270 };
     this.cameraDrift = { x: 0, y: 0, speed: 0.55 };
     this.cameraSettling = false;
+    this.backgroundMusic?.pause();
+    this.backgroundMusic = undefined;
+    this.triedBackgroundMusic = false;
+    this.smsNotification?.destroy();
+    this.smsNotification = undefined;
   }
 
   create() {
@@ -128,8 +140,10 @@ export class StoryScene extends Phaser.Scene {
 
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       if (this.isTransitioning) return;
+      void this.tryStartBackgroundMusic();
       if (this.tryToggleGuides(pointer)) return;
       if (this.isTypingDialogue) {
+        if (this.tryCollectMemory(pointer)) return;
         this.completeDialogueText();
         return;
       }
@@ -168,7 +182,9 @@ export class StoryScene extends Phaser.Scene {
     });
 
     if (this.memoryMarker) {
-      this.memoryMarker.setScale(1 + Math.sin(seconds * 5) * 0.08);
+      this.memoryMarker.setY(this.memoryMarkerBaseY + Math.sin(seconds * 2.8) * 3);
+      this.memoryMarker.setScale(this.memoryMarkerBaseScale * (1 + Math.sin(seconds * 5) * 0.08));
+      this.memoryMarker.rotation = Math.sin(seconds * 1.6) * 0.025;
     }
   }
 
@@ -231,6 +247,18 @@ export class StoryScene extends Phaser.Scene {
       .setDepth(85)
       .setScrollFactor(0);
 
+    this.memoryCounterText = this.add
+      .text(32, 112, "", {
+        fontFamily: "Courier New",
+        fontSize: "14px",
+        fontStyle: "bold",
+        color: "#fff2dc",
+        backgroundColor: "#10131acc",
+        padding: { x: 12, y: 8 }
+      })
+      .setDepth(85)
+      .setScrollFactor(0);
+
     this.guideToggle = this.add
       .text(808, 28, "guias: on", {
         fontFamily: "Courier New",
@@ -245,6 +273,7 @@ export class StoryScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
 
     this.updateScoreText();
+    this.updateMemoryCounterText();
   }
 
   private createCinematicUi() {
@@ -285,6 +314,7 @@ export class StoryScene extends Phaser.Scene {
       this.choicesContainer,
       this.locationText,
       this.scoreText,
+      this.memoryCounterText,
       this.guideToggle,
       this.warmthOverlay,
       this.vignetteTop,
@@ -392,7 +422,8 @@ export class StoryScene extends Phaser.Scene {
     this.actors.alexis.applyBeat(beat.actors.alexis, immediate);
     this.actors.kiara.applyBeat(beat.actors.kiara, immediate);
     this.renderSceneProps(beat.props ?? [], immediate);
-    this.updateMemoryMarker(beat);
+    this.updateMemoryMarker(beat, immediate);
+    this.updateSmsNotification(beat, immediate);
     this.applyCinematicMood(beat, immediate);
 
     const zoom = beat.camera?.zoom ?? 1;
@@ -451,6 +482,7 @@ export class StoryScene extends Phaser.Scene {
     completeChapter(this.progress, this.chapter.id);
     if (nextChapter) unlockChapter(this.progress, nextChapter.id);
     saveProgress(this.progress);
+    this.fadeOutBackgroundMusic();
 
     this.isTransitioning = true;
     this.cameras.main.fadeOut(420, 9, 11, 16);
@@ -459,58 +491,217 @@ export class StoryScene extends Phaser.Scene {
     });
   }
 
-  private updateMemoryMarker(beat: StoryBeat) {
+  private updateMemoryMarker(beat: StoryBeat, immediate = false) {
     this.memoryMarker?.destroy();
     this.memoryMarker = undefined;
+    this.memoryMarkerBaseY = 0;
+    this.memoryMarkerBaseScale = 0.82;
 
     if (!beat.memory) return;
-    if (this.progress.memories.some((memory) => memory.id === beat.memory?.id)) return;
+    const isCollected = this.progress.memories.some((memory) => memory.id === beat.memory?.id);
 
     const marker = this.add.container(beat.memory.x, beat.memory.y).setDepth(70);
+    this.memoryMarkerBaseY = beat.memory.y;
+    this.memoryMarkerBaseScale = 0.62;
     this.uiCamera?.ignore(marker);
-    const halo = this.add.ellipse(0, 0, 92, 58, 0xfff1a5, 0.16);
-    const card = this.add.graphics();
-    card.fillStyle(0x151820, 0.9);
-    card.fillRoundedRect(-42, -27, 84, 54, 10);
-    card.lineStyle(3, 0xffd27d, 0.95);
-    card.strokeRoundedRect(-42, -27, 84, 54, 10);
-    card.lineStyle(1, 0xffffff, 0.18);
-    card.strokeRoundedRect(-34, -19, 68, 38, 7);
-    const gemShadow = this.add.polygon(3, 3, [0, -17, 19, 0, 0, 17, -19, 0], 0x5b3d2f, 0.38);
-    const gem = this.add.polygon(0, 0, [0, -17, 19, 0, 0, 17, -19, 0], 0xfff1a5, 1);
-    gem.setStrokeStyle(3, 0xe79037, 1);
-    const spark = this.add
-      .text(0, -1, "*", {
-        fontFamily: "Courier New",
-        fontSize: "24px",
-        fontStyle: "bold",
-        color: "#10131a"
-      })
-      .setOrigin(0.5);
-    const text = this.add
-      .text(0, -47, "recuerdo", {
-        fontFamily: "Courier New",
-        fontSize: "14px",
-        fontStyle: "bold",
-        color: "#fff2dc",
-        stroke: "#10131a",
-        strokeThickness: 4
-      })
-      .setOrigin(0.5);
 
-    marker.add([halo, card, gemShadow, gem, spark, text]);
-    marker.setVisible(this.guidesVisible);
+    const accent = isCollected ? 0xb783ff : 0xc79bff;
+    const gemColor = 0x2a1638;
+    const deepAccent = isCollected ? 0x201026 : 0x2c1438;
+    const haloOuter = this.add.ellipse(0, 0, 96, 62, 0x9b6dff, isCollected ? 0.12 : 0.16);
+    const haloMiddle = this.add.ellipse(0, 0, 70, 44, 0x8fe8ff, isCollected ? 0.07 : 0.1);
+    const haloInner = this.add.ellipse(0, 0, 36, 26, 0xe7d6ff, 0.07);
+    const orbitA = this.add.ellipse(0, 0, 70, 38, 0xffffff, 0).setStrokeStyle(1, accent, 0.5);
+    const orbitB = this.add.ellipse(0, 0, 52, 50, 0xffffff, 0).setStrokeStyle(1, 0x8fe8ff, 0.3);
+    orbitB.setAngle(-22);
+
+    const gemShadow = this.add.polygon(3, 5, [0, -18, 17, -2, 8, 15, 0, 21, -8, 15, -17, -2], 0x05070a, 0.44);
+    const gem = this.add.polygon(0, 0, [0, -21, 20, -3, 10, 18, 0, 24, -10, 18, -20, -3], gemColor, 0.76);
+    gem.setStrokeStyle(3, deepAccent, 0.95);
+    const gemEdge = this.add.polygon(0, 0, [0, -21, 20, -3, 10, 18, 0, 24, -10, 18, -20, -3], 0xffffff, 0);
+    gemEdge.setStrokeStyle(1, accent, 0.86);
+    const innerGlow = this.add.ellipse(0, 0, 27, 35, 0x8fe8ff, 0.13);
+    const gemFacetTop = this.add.polygon(0, -9, [0, -9, 12, 0, 0, 5, -12, 0], 0xe7d6ff, 0.16);
+    const gemFacetBottom = this.add.polygon(0, 8, [0, -2, 8, 7, 0, 12, -8, 7], 0x8fe8ff, 0.08);
+    const gemShine = this.add.polygon(-4, -7, [0, -7, 6, -2, 2, 5, -5, 0], 0xffffff, 0.46);
+    const coreSpark = this.add.polygon(0, -1, [0, -8, 3, -2, 8, 0, 3, 2, 0, 8, -3, 2, -8, 0, -3, -2], 0xf2e7ff, 0.54);
+    const makeTwinkle = (x: number, y: number, scale: number, alpha: number) =>
+      this.add
+        .polygon(x, y, [0, -8, 2, -2, 8, 0, 2, 2, 0, 8, -2, 2, -8, 0, -2, -2], 0xf2e7ff, alpha)
+        .setScale(scale);
+
+    const orbitSparks = [
+      this.add.text(-44, -10, "*", {
+        fontFamily: "Courier New",
+        fontSize: "15px",
+        fontStyle: "bold",
+        color: "#f2e7ff"
+      }),
+      this.add.text(38, -16, "+", {
+        fontFamily: "Courier New",
+        fontSize: "12px",
+        fontStyle: "bold",
+        color: "#d8fbff"
+      }),
+      this.add.text(44, 10, ".", {
+        fontFamily: "Courier New",
+        fontSize: "17px",
+        fontStyle: "bold",
+        color: "#c79bff"
+      }),
+      this.add.text(-34, 18, "+", {
+        fontFamily: "Courier New",
+        fontSize: "12px",
+        fontStyle: "bold",
+        color: "#f2e7ff"
+      })
+    ].map((sparkle) => sparkle.setOrigin(0.5));
+    const twinkles = [
+      makeTwinkle(-38, -27, 0.52, 0.66),
+      makeTwinkle(38, -25, 0.4, 0.6),
+      makeTwinkle(42, 22, 0.42, 0.54),
+      makeTwinkle(-32, 26, 0.36, 0.58)
+    ];
+
+    marker.add([
+      haloOuter,
+      haloMiddle,
+      haloInner,
+      orbitA,
+      orbitB,
+      gemShadow,
+      gem,
+      innerGlow,
+      gemFacetTop,
+      gemFacetBottom,
+      gemEdge,
+      gemShine,
+      coreSpark,
+      ...twinkles,
+      ...orbitSparks
+    ]);
+    marker.setAlpha(0);
+    marker.setScale(this.memoryMarkerBaseScale * 0.78);
+    marker.setVisible(true);
     this.memoryMarker = marker;
+
+    this.tweens.add({
+      targets: marker,
+      alpha: 1,
+      scale: this.memoryMarkerBaseScale,
+      duration: 360,
+      ease: "Back.easeOut"
+    });
+    this.tweens.add({
+      targets: haloOuter,
+      alpha: 0.28,
+      scaleX: 1.18,
+      scaleY: 1.18,
+      yoyo: true,
+      repeat: -1,
+      duration: 1200,
+      ease: "Sine.easeInOut"
+    });
+    this.tweens.add({
+      targets: haloMiddle,
+      alpha: isCollected ? 0.24 : 0.32,
+      scaleX: 1.1,
+      scaleY: 1.1,
+      yoyo: true,
+      repeat: -1,
+      duration: 920,
+      ease: "Sine.easeInOut"
+    });
+    this.tweens.add({
+      targets: orbitA,
+      angle: 360,
+      repeat: -1,
+      duration: 5200,
+      ease: "Linear"
+    });
+    this.tweens.add({
+      targets: orbitB,
+      angle: -382,
+      repeat: -1,
+      duration: 6200,
+      ease: "Linear"
+    });
+    this.tweens.add({
+      targets: [...orbitSparks, ...twinkles],
+      alpha: 0.22,
+      scaleX: 0.82,
+      scaleY: 0.82,
+      yoyo: true,
+      repeat: -1,
+      duration: 720,
+      ease: "Sine.easeInOut"
+    });
+    this.tweens.add({
+      targets: gemShine,
+      alpha: 0.72,
+      x: 4,
+      y: -15,
+      yoyo: true,
+      repeat: -1,
+      duration: 1100,
+      ease: "Sine.easeInOut"
+    });
+    this.tweens.add({
+      targets: innerGlow,
+      alpha: 0.26,
+      scaleX: 1.18,
+      scaleY: 1.08,
+      yoyo: true,
+      repeat: -1,
+      duration: 980,
+      ease: "Sine.easeInOut"
+    });
+    this.tweens.add({
+      targets: coreSpark,
+      alpha: 0.18,
+      scaleX: 0.82,
+      scaleY: 0.82,
+      yoyo: true,
+      repeat: -1,
+      duration: 900,
+      ease: "Sine.easeInOut"
+    });
+
+    if (!immediate) {
+      this.playMemoryRevealChime();
+    }
   }
 
   private tryCollectMemory(pointer: Phaser.Input.Pointer) {
     const beat = this.currentBeat();
-    if (!beat.memory || !this.memoryMarker || !this.guidesVisible) return false;
+    if (!beat.memory || !this.memoryMarker) return false;
 
     const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
     const distance = Phaser.Math.Distance.Between(worldPoint.x, worldPoint.y, beat.memory.x, beat.memory.y);
 
     if (distance > 70) return false;
+
+    const isCollected = this.progress.memories.some((memory) => memory.id === beat.memory?.id);
+    if (isCollected) {
+      this.playMemoryRevealChime();
+      const recalledMarker = this.memoryMarker;
+      this.memoryMarker = undefined;
+      this.memoryMarkerBaseY = 0;
+      this.memoryMarkerBaseScale = 0.82;
+      this.playMemoryCollectBurst(recalledMarker.x, recalledMarker.y, "recordado");
+      this.tweens.add({
+        targets: recalledMarker,
+        alpha: 0,
+        scale: 1.25,
+        angle: 16,
+        y: recalledMarker.y - 20,
+        duration: 460,
+        ease: "Sine.easeOut",
+        onComplete: () => recalledMarker.destroy()
+      });
+      this.flashToast(`Recuerdo: ${beat.memory.label}`);
+      return true;
+    }
 
     addMemory(this.progress, {
       id: beat.memory.id,
@@ -519,8 +710,23 @@ export class StoryScene extends Phaser.Scene {
     });
     this.playMemoryChime();
     saveProgress(this.progress);
-    this.memoryMarker.destroy();
+    this.updateMemoryCounterText();
+    const collectedMarker = this.memoryMarker;
     this.memoryMarker = undefined;
+    this.memoryMarkerBaseY = 0;
+    this.memoryMarkerBaseScale = 0.82;
+    if (collectedMarker) {
+      this.playMemoryCollectBurst(collectedMarker.x, collectedMarker.y, "guardado");
+      this.tweens.add({
+        targets: collectedMarker,
+        alpha: 0,
+        scale: 1.45,
+        y: collectedMarker.y - 18,
+        duration: 420,
+        ease: "Sine.easeOut",
+        onComplete: () => collectedMarker.destroy()
+      });
+    }
     this.flashToast(`Recuerdo guardado: ${beat.memory.label}`);
     return true;
   }
@@ -584,37 +790,462 @@ export class StoryScene extends Phaser.Scene {
     });
   }
 
-  private playMemoryChime() {
-    const AudioContextCtor =
-      window.AudioContext ??
-      (window as Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext })
-        .webkitAudioContext;
-    if (!AudioContextCtor) return;
+  private async tryStartBackgroundMusic() {
+    if (this.triedBackgroundMusic || this.backgroundMusic) return;
 
-    const context = new AudioContextCtor();
-    const gain = context.createGain();
+    this.triedBackgroundMusic = true;
+    const url = await this.findBackgroundMusicUrl();
+    if (!url) return;
+
+    const audio = new Audio(url);
+    audio.loop = true;
+    audio.volume = 0;
+    this.backgroundMusic = audio;
+
+    try {
+      await audio.play();
+      this.tweens.addCounter({
+        from: 0,
+        to: 0.16,
+        duration: 1600,
+        ease: "Sine.easeOut",
+        onUpdate: (tween) => {
+          if (this.backgroundMusic) {
+            this.backgroundMusic.volume = tween.getValue() ?? 0;
+          }
+        }
+      });
+    } catch {
+      this.backgroundMusic = undefined;
+    }
+  }
+
+  private async findBackgroundMusicUrl() {
+    const candidates = [`/assets/audio/${this.chapter.id}.mp3`, `/assets/audio/${this.chapter.id}.ogg`];
+
+    for (const url of candidates) {
+      try {
+        const response = await fetch(url, { method: "HEAD" });
+        if (response.ok) return url;
+      } catch {
+        // Missing music is fine while the soundtrack is still being composed.
+      }
+    }
+
+    return undefined;
+  }
+
+  private fadeOutBackgroundMusic() {
+    const music = this.backgroundMusic;
+    if (!music) return;
+
+    this.backgroundMusic = undefined;
+    this.tweens.addCounter({
+      from: music.volume,
+      to: 0,
+      duration: 900,
+      ease: "Sine.easeIn",
+      onUpdate: (tween) => {
+        music.volume = tween.getValue() ?? 0;
+      },
+      onComplete: () => {
+        music.pause();
+        music.currentTime = 0;
+      }
+    });
+  }
+
+  private updateSmsNotification(beat: StoryBeat, immediate = false) {
+    this.smsNotification?.destroy();
+    this.smsNotification = undefined;
+
+    const isSms = beat.location === "taxi" && beat.speaker === "Kiara";
+    if (!isSms) return;
+
+    const notification = this.add.container(1000, 96).setDepth(99).setScrollFactor(0);
+    const shadow = this.add.graphics();
+    shadow.fillStyle(0x05070a, 0.32);
+    shadow.fillRoundedRect(4, 6, 316, 94, 18);
+
+    const card = this.add.graphics();
+    card.fillStyle(0xf6f8fb, 0.94);
+    card.fillRoundedRect(0, 0, 316, 94, 18);
+    card.lineStyle(1, 0xffffff, 0.7);
+    card.strokeRoundedRect(0, 0, 316, 94, 18);
+
+    const avatar = this.add.ellipse(34, 34, 42, 42, 0x2a1638, 1).setStrokeStyle(2, 0xb783ff, 0.92);
+    const avatarText = this.add
+      .text(34, 34, "K", {
+        fontFamily: "Courier New",
+        fontSize: "22px",
+        fontStyle: "bold",
+        color: "#f2e7ff"
+      })
+      .setOrigin(0.5);
+    const appText = this.add.text(64, 16, "mensaje", {
+      fontFamily: "Courier New",
+      fontSize: "12px",
+      fontStyle: "bold",
+      color: "#6f7782"
+    });
+    const timeText = this.add
+      .text(290, 16, "ahora", {
+        fontFamily: "Courier New",
+        fontSize: "12px",
+        fontStyle: "bold",
+        color: "#8b949e"
+      })
+      .setOrigin(1, 0);
+    const senderText = this.add.text(64, 32, "Kiara", {
+      fontFamily: "Courier New",
+      fontSize: "16px",
+      fontStyle: "bold",
+      color: "#171a20"
+    });
+    const messageText = this.add.text(64, 54, beat.text, {
+      fontFamily: "Courier New",
+      fontSize: "14px",
+      fontStyle: "bold",
+      color: "#2c3138",
+      wordWrap: { width: 232 }
+    });
+
+    notification.add([shadow, card, avatar, avatarText, appText, timeText, senderText, messageText]);
+    this.cameras.main.ignore(notification);
+    this.smsNotification = notification;
+
+    if (immediate) {
+      notification.setX(606);
+      return;
+    }
+
+    this.playSmsNotificationSound();
+    this.tweens.add({
+      targets: notification,
+      x: 606,
+      duration: 520,
+      ease: "Back.easeOut"
+    });
+    this.tweens.add({
+      targets: notification,
+      y: 102,
+      yoyo: true,
+      duration: 900,
+      repeat: 1,
+      ease: "Sine.easeInOut"
+    });
+  }
+
+  private playSmsNotificationSound() {
+    const context = this.createAudioContext();
+    if (!context) return;
+
+    const output = this.createEchoBus(context, 0.62, 0.09, 0.08, 0.1);
     const now = context.currentTime;
-    gain.connect(context.destination);
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.08, now + 0.03);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.72);
+
+    this.scheduleTone(context, output, 880, now, 0.16, 0.03, "sine");
+    this.scheduleTone(context, output, 1318.51, now + 0.09, 0.18, 0.026, "sine");
+    this.scheduleTone(context, output, 1760, now + 0.19, 0.2, 0.018, "triangle");
+
+    window.setTimeout(() => {
+      void context.close();
+    }, 700);
+  }
+
+  private playScoreChime(statId: StoryStatId) {
+    const context = this.createAudioContext();
+    if (!context) return;
+
+    const output = this.createEchoBus(context, 0.68, 0.18, 0.16, 0.2);
+    const now = context.currentTime;
+
+    if (statId === "ternura") {
+      [
+        { frequency: 659.25, delay: 0, volume: 0.026 },
+        { frequency: 783.99, delay: 0.08, volume: 0.024 },
+        { frequency: 1046.5, delay: 0.18, volume: 0.02 }
+      ].forEach(({ frequency, delay, volume }) => {
+        this.scheduleTone(context, output, frequency, now + delay, 0.42, volume, "sine");
+      });
+    } else if (statId === "nervios") {
+      [
+        { frequency: 466.16, delay: 0, volume: 0.02 },
+        { frequency: 440, delay: 0.06, volume: 0.018 },
+        { frequency: 523.25, delay: 0.14, volume: 0.016 },
+        { frequency: 493.88, delay: 0.2, volume: 0.012 }
+      ].forEach(({ frequency, delay, volume }) => {
+        this.scheduleTone(context, output, frequency, now + delay, 0.18, volume, "triangle");
+      });
+      this.scheduleNoise(context, output, now, 0.22, 0.004, 1600, "highpass");
+    } else {
+      [
+        { frequency: 523.25, delay: 0, volume: 0.018 },
+        { frequency: 659.25, delay: 0.11, volume: 0.02 },
+        { frequency: 783.99, delay: 0.24, volume: 0.018 },
+        { frequency: 987.77, delay: 0.39, volume: 0.016 },
+        { frequency: 1174.66, delay: 0.56, volume: 0.012 }
+      ].forEach(({ frequency, delay, volume }) => {
+        this.scheduleTone(context, output, frequency, now + delay, 0.58, volume, "sine");
+      });
+      this.scheduleTone(context, output, 196, now, 1.1, 0.008, "triangle");
+    }
+
+    window.setTimeout(() => {
+      void context.close();
+    }, 1500);
+  }
+
+  private playMemoryCollectBurst(x: number, y: number, text = "guardado") {
+    const burst = this.add.container(x, y).setDepth(96);
+    this.uiCamera?.ignore(burst);
+
+    const ring = this.add.ellipse(0, 0, 42, 30, 0xe7d6ff, 0.2).setStrokeStyle(3, 0xb783ff, 0.9);
+    const softRing = this.add.ellipse(0, 0, 68, 44, 0xd8fbff, 0.11).setStrokeStyle(1, 0x8fe8ff, 0.44);
+    const glow = this.add.ellipse(0, 0, 86, 56, 0x9b6dff, 0.13);
+    const label = this.add
+      .text(0, -48, text, {
+        fontFamily: "Courier New",
+        fontSize: "15px",
+        fontStyle: "bold",
+        color: "#fff2dc",
+        stroke: "#10131a",
+        strokeThickness: 4
+      })
+      .setOrigin(0.5);
+
+    const sparks = Array.from({ length: 12 }, (_, index) => {
+      const angle = (Math.PI * 2 * index) / 12;
+      const spark = this.add
+        .text(Math.cos(angle) * 14, Math.sin(angle) * 10, index % 3 === 0 ? "+" : "*", {
+          fontFamily: "Courier New",
+          fontSize: `${13 + (index % 4) * 3}px`,
+          fontStyle: "bold",
+          color: index % 3 === 0 ? "#d8fbff" : index % 2 === 0 ? "#f2e7ff" : "#c79bff"
+        })
+        .setOrigin(0.5);
+      spark.setData("targetX", Math.cos(angle) * (56 + index * 2));
+      spark.setData("targetY", Math.sin(angle) * (38 + index * 1.4));
+      return spark;
+    });
+
+    burst.add([glow, softRing, ring, label, ...sparks]);
+
+    this.tweens.add({
+      targets: glow,
+      scaleX: 3.4,
+      scaleY: 2.8,
+      alpha: 0,
+      duration: 840,
+      ease: "Sine.easeOut"
+    });
+    this.tweens.add({
+      targets: [ring, softRing],
+      scaleX: 3.2,
+      scaleY: 2.4,
+      alpha: 0,
+      angle: 80,
+      duration: 760,
+      ease: "Sine.easeOut"
+    });
+    this.tweens.add({
+      targets: label,
+      y: -70,
+      alpha: 0,
+      duration: 900,
+      ease: "Sine.easeIn"
+    });
+    sparks.forEach((spark, index) => {
+      this.tweens.add({
+        targets: spark,
+        x: spark.getData("targetX") as number,
+        y: spark.getData("targetY") as number,
+        angle: index % 2 === 0 ? 34 : -34,
+        alpha: 0,
+        duration: 820,
+        ease: "Sine.easeOut"
+      });
+    });
+    this.time.delayedCall(1100, () => burst.destroy());
+  }
+
+  private playMemoryRevealChime() {
+    const context = this.createAudioContext();
+    if (!context) return;
+
+    const output = context.createGain();
+    const delay = context.createDelay();
+    const feedback = context.createGain();
+    const wet = context.createGain();
+    const now = context.currentTime;
+
+    output.gain.setValueAtTime(0.58, now);
+    delay.delayTime.setValueAtTime(0.16, now);
+    feedback.gain.setValueAtTime(0.1, now);
+    wet.gain.setValueAtTime(0.2, now);
+    output.connect(context.destination);
+    output.connect(delay);
+    delay.connect(feedback);
+    feedback.connect(delay);
+    delay.connect(wet);
+    wet.connect(context.destination);
+
+    this.scheduleTone(context, output, 659.25, now, 0.34, 0.016, "triangle");
+    this.scheduleTone(context, output, 880, now + 0.06, 0.34, 0.022, "sine");
+    this.scheduleTone(context, output, 1174.66, now + 0.16, 0.42, 0.018, "sine");
+    this.scheduleTone(context, output, 1567.98, now + 0.27, 0.3, 0.011, "triangle");
+
+    window.setTimeout(() => {
+      void context.close();
+    }, 1000);
+  }
+
+  private playMemoryChime() {
+    const context = this.createAudioContext();
+    if (!context) return;
+
+    const output = context.createGain();
+    const delay = context.createDelay();
+    const feedback = context.createGain();
+    const wet = context.createGain();
+    const now = context.currentTime;
+
+    output.gain.setValueAtTime(0.74, now);
+    delay.delayTime.setValueAtTime(0.21, now);
+    feedback.gain.setValueAtTime(0.2, now);
+    wet.gain.setValueAtTime(0.26, now);
+
+    output.connect(context.destination);
+    output.connect(delay);
+    delay.connect(feedback);
+    feedback.connect(delay);
+    delay.connect(wet);
+    wet.connect(context.destination);
 
     [
-      { frequency: 660, delay: 0 },
-      { frequency: 880, delay: 0.08 },
-      { frequency: 1320, delay: 0.18 }
+      { frequency: 392, delay: 0, volume: 0.016, duration: 0.9, type: "triangle" as OscillatorType },
+      { frequency: 523.25, delay: 0.02, volume: 0.032, duration: 0.62, type: "sine" as OscillatorType },
+      { frequency: 659.25, delay: 0.1, volume: 0.038, duration: 0.62, type: "sine" as OscillatorType },
+      { frequency: 783.99, delay: 0.2, volume: 0.04, duration: 0.6, type: "sine" as OscillatorType },
+      { frequency: 1046.5, delay: 0.34, volume: 0.032, duration: 0.54, type: "triangle" as OscillatorType },
+      { frequency: 1318.51, delay: 0.47, volume: 0.024, duration: 0.46, type: "sine" as OscillatorType },
+      { frequency: 1567.98, delay: 0.58, volume: 0.018, duration: 0.34, type: "sine" as OscillatorType }
+    ].forEach(({ frequency, delay, volume, duration, type }) => {
+      this.scheduleTone(context, output, frequency, now + delay, duration, volume, type);
+    });
+
+    [
+      { frequency: 1760, delay: 0.24 },
+      { frequency: 2093, delay: 0.42 },
+      { frequency: 2637.02, delay: 0.64 }
     ].forEach(({ frequency, delay }) => {
-      const oscillator = context.createOscillator();
-      oscillator.type = "sine";
-      oscillator.frequency.setValueAtTime(frequency, now + delay);
-      oscillator.connect(gain);
-      oscillator.start(now + delay);
-      oscillator.stop(now + delay + 0.32);
+      this.scheduleTone(context, output, frequency, now + delay, 0.2, 0.01, "triangle");
     });
 
     window.setTimeout(() => {
       void context.close();
-    }, 900);
+    }, 1900);
+  }
+
+  private createAudioContext() {
+    const AudioContextCtor =
+      window.AudioContext ??
+      (window as Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext })
+        .webkitAudioContext;
+    if (!AudioContextCtor) return undefined;
+
+    const context = new AudioContextCtor();
+    if (context.state === "suspended") {
+      void context.resume();
+    }
+    return context;
+  }
+
+  private createEchoBus(
+    context: AudioContext,
+    outputVolume: number,
+    delayTime: number,
+    feedbackAmount: number,
+    wetAmount: number
+  ) {
+    const output = context.createGain();
+    const delay = context.createDelay();
+    const feedback = context.createGain();
+    const wet = context.createGain();
+
+    output.gain.setValueAtTime(outputVolume, context.currentTime);
+    delay.delayTime.setValueAtTime(delayTime, context.currentTime);
+    feedback.gain.setValueAtTime(feedbackAmount, context.currentTime);
+    wet.gain.setValueAtTime(wetAmount, context.currentTime);
+
+    output.connect(context.destination);
+    output.connect(delay);
+    delay.connect(feedback);
+    feedback.connect(delay);
+    delay.connect(wet);
+    wet.connect(context.destination);
+
+    return output;
+  }
+
+  private scheduleTone(
+    context: AudioContext,
+    destination: AudioNode,
+    frequency: number,
+    start: number,
+    duration: number,
+    volume: number,
+    type: OscillatorType
+  ) {
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = type;
+    oscillator.frequency.setValueAtTime(frequency, start);
+
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(volume, start + 0.025);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+
+    oscillator.connect(gain);
+    gain.connect(destination);
+    oscillator.start(start);
+    oscillator.stop(start + duration + 0.03);
+  }
+
+  private scheduleNoise(
+    context: AudioContext,
+    destination: AudioNode,
+    start: number,
+    duration: number,
+    volume: number,
+    filterFrequency: number,
+    filterType: BiquadFilterType
+  ) {
+    const sampleCount = Math.max(1, Math.floor(context.sampleRate * duration));
+    const buffer = context.createBuffer(1, sampleCount, context.sampleRate);
+    const data = buffer.getChannelData(0);
+
+    for (let index = 0; index < sampleCount; index += 1) {
+      const fadeOut = 1 - index / sampleCount;
+      data[index] = (Math.random() * 2 - 1) * fadeOut;
+    }
+
+    const source = context.createBufferSource();
+    const filter = context.createBiquadFilter();
+    const gain = context.createGain();
+
+    source.buffer = buffer;
+    filter.type = filterType;
+    filter.frequency.setValueAtTime(filterFrequency, start);
+    filter.Q.setValueAtTime(filterType === "bandpass" ? 1.4 : 0.7, start);
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(volume, start + 0.025);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(destination);
+    source.start(start);
+    source.stop(start + duration + 0.03);
   }
 
   private tryToggleGuides(pointer: Phaser.Input.Pointer) {
@@ -630,7 +1261,7 @@ export class StoryScene extends Phaser.Scene {
     this.guideToggle.setText(`guias: ${this.guidesVisible ? "on" : "off"}`);
     this.locationText.setVisible(this.guidesVisible);
     this.scoreText.setVisible(this.guidesVisible);
-    this.memoryMarker?.setVisible(this.guidesVisible);
+    this.memoryCounterText.setVisible(this.guidesVisible);
   }
 
   private startDialogueText(text: string, showChoicesWhenDone = false) {
@@ -729,6 +1360,7 @@ export class StoryScene extends Phaser.Scene {
       addStoryStat(this.progress, choice.stat.id, choice.stat.amount ?? 1);
       saveProgress(this.progress);
       this.updateScoreText();
+      this.playScoreChime(choice.stat.id);
       this.flashToast(`+${choice.stat.amount ?? 1} ${choice.stat.label}`);
     }
 
@@ -743,5 +1375,13 @@ export class StoryScene extends Phaser.Scene {
   private updateScoreText() {
     const { ternura, nervios, sueno } = this.progress.storyStats;
     this.scoreText.setText(`ternura ${ternura}  |  nervios ${nervios}  |  sueno ${sueno}`);
+  }
+
+  private updateMemoryCounterText() {
+    const chapterMemoryIds = new Set(
+      this.chapter.beats.flatMap((beat) => (beat.memory ? [beat.memory.id] : []))
+    );
+    const collected = this.progress.memories.filter((memory) => chapterMemoryIds.has(memory.id)).length;
+    this.memoryCounterText.setText(`recuerdos ${collected}/${chapterMemoryIds.size}`);
   }
 }

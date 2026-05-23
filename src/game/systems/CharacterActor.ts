@@ -109,6 +109,7 @@ export class CharacterActor {
 
   private textureForState(state: ActorBeatState) {
     if (state.pose) return `${this.actorId}-pose-${state.pose}`;
+    if (state.expression) return `${this.actorId}-${state.expression}`;
 
     const expressionByMood: Record<Mood, string> = {
       idle: "neutral",

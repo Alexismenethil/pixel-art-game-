@@ -53,7 +53,7 @@ export class BootScene extends Phaser.Scene {
       }
     }
 
-    const expressions = [
+    const sharedExpressions = [
       "neutral",
       "happy",
       "surprised",
@@ -64,11 +64,44 @@ export class BootScene extends Phaser.Scene {
       "angry",
       "crying",
       "laughing",
-      "sleepy"
+      "sleepy",
+      "looking-away-shy"
     ] as const;
 
-    for (const expression of expressions) {
+    const alexisExpressions = [
+      "nervous-soft",
+      "panic-late",
+      "awkward-smile",
+      "flirty-shy",
+      "soft-love",
+      "laughing-soft",
+      "trying-cool",
+      "breathless",
+      "after-kiss-shy"
+    ] as const;
+
+    const kiaraExpressions = [
+      "teasing-smile",
+      "laughing-haha",
+      "shy-soft",
+      "flirty-soft",
+      "gentle-smile",
+      "surprised-soft",
+      "caring",
+      "close-nervous",
+      "after-kiss-blush"
+    ] as const;
+
+    for (const expression of sharedExpressions) {
       this.load.image(`alexis-${expression}`, `/assets/characters/alexis/${expression}.png`);
+      this.load.image(`kiara-${expression}`, `/assets/characters/kiara/${expression}.png`);
+    }
+
+    for (const expression of alexisExpressions) {
+      this.load.image(`alexis-${expression}`, `/assets/characters/alexis/${expression}.png`);
+    }
+
+    for (const expression of kiaraExpressions) {
       this.load.image(`kiara-${expression}`, `/assets/characters/kiara/${expression}.png`);
     }
 
@@ -79,7 +112,32 @@ export class BootScene extends Phaser.Scene {
       this.load.image(`kiara-pose-${pose}`, `/assets/characters/kiara/poses/${pose}.png`);
     }
 
-    const coupleScenes = ["walking-back", "hold-hands", "sitting-together", "kiss", "hug"] as const;
+    const coupleScenes = [
+      "walking-back",
+      "hold-hands",
+      "sitting-together",
+      "kiss",
+      "hug",
+      "hospital-meet-nervous",
+      "walking-side-01",
+      "walking-side-02",
+      "walking-side-03",
+      "walking-side-04",
+      "walking-back-01",
+      "walking-back-02",
+      "walking-back-03",
+      "walking-back-04",
+      "valley-back-wide",
+      "valley-back-close",
+      "river-sitting-normal",
+      "river-sitting-snacks",
+      "river-sitting-close",
+      "almost-kiss-01",
+      "almost-kiss-02",
+      "almost-kiss-03",
+      "kiss-sitting",
+      "after-kiss-shy"
+    ] as const;
 
     for (const scene of coupleScenes) {
       this.load.image(`couple-${scene}`, `/assets/couples/${scene}.png`);
