@@ -182,6 +182,7 @@ export class StoryScene extends Phaser.Scene {
         this.pendingSmsNotificationSound = false;
         this.playSmsNotificationSound();
       }
+      if (this.isPlayerInputLocked()) return;
       if (this.tryToggleGuides(pointer)) return;
       if (this.isTypingDialogue) {
         if (this.tryCollectMemory(pointer)) return;
@@ -471,6 +472,10 @@ export class StoryScene extends Phaser.Scene {
       this.cameras.main.shake(cinematic.shakeDuration ?? 220, cinematic.shake);
     }
 
+    if (!immediate && cinematic?.magicShift) {
+      this.playMagicSceneShift();
+    }
+
     const bloom = cinematic?.bloom ?? 0;
     this.tweens.add({
       targets: this.bloomOverlay,
@@ -507,8 +512,10 @@ export class StoryScene extends Phaser.Scene {
     this.clearChoices();
     this.currentPace = beat.pace ?? "normal";
     if (beat.cinematic?.persistDialogue) {
+      if (beat.text) this.fullDialogueText = beat.text;
       this.dialogueTimer?.remove(false);
       this.dialogueTimer = undefined;
+      this.dialogueText.setText(this.fullDialogueText);
       this.isTypingDialogue = false;
       this.typingShowsChoices = false;
       this.scheduleAutoAdvance(beat);
@@ -570,7 +577,11 @@ export class StoryScene extends Phaser.Scene {
     this.cameraTilt = 0;
   }
 
-  private advance() {
+  private advance(fromAuto = false) {
+    if (!fromAuto && this.isPlayerInputLocked()) {
+      return;
+    }
+
     this.autoAdvanceTimer?.remove(false);
     this.autoAdvanceTimer = undefined;
 
@@ -1154,41 +1165,176 @@ export class StoryScene extends Phaser.Scene {
     });
   }
 
+  private playMagicSceneShift() {
+    const veil = this.add
+      .rectangle(0, 0, 960, 540, 0xe7d6ff, 0)
+      .setOrigin(0)
+      .setDepth(76)
+      .setScrollFactor(0)
+      .setBlendMode(Phaser.BlendModes.SCREEN);
+    this.cameras.main.ignore(veil);
+
+    this.tweens.add({
+      targets: veil,
+      alpha: { from: 0, to: 0.2 },
+      yoyo: true,
+      duration: 620,
+      ease: "Sine.easeInOut",
+      onComplete: () => veil.destroy()
+    });
+
+    const sparkles = Array.from({ length: 18 }, (_, index) => {
+      const angle = (Math.PI * 2 * index) / 18;
+      const radius = 90 + (index % 5) * 32;
+      const x = 480 + Math.cos(angle) * radius;
+      const y = 258 + Math.sin(angle) * (radius * 0.42);
+      const sparkle = this.add
+        .text(x, y, index % 3 === 0 ? "+" : "*", {
+          fontFamily: "Courier New",
+          fontSize: `${12 + (index % 4) * 3}px`,
+          fontStyle: "bold",
+          color: index % 2 === 0 ? "#d8fbff" : "#e7d6ff",
+          stroke: "#2a1638",
+          strokeThickness: 2
+        })
+        .setOrigin(0.5)
+        .setDepth(77)
+        .setAlpha(0)
+        .setScrollFactor(0);
+      this.cameras.main.ignore(sparkle);
+      return sparkle;
+    });
+
+    sparkles.forEach((sparkle, index) => {
+      this.tweens.add({
+        targets: sparkle,
+        alpha: { from: 0, to: 0.85 },
+        x: sparkle.x + Math.sin(index * 1.7) * 22,
+        y: sparkle.y - 20 - (index % 4) * 6,
+        scale: 1.18,
+        delay: index * 18,
+        yoyo: true,
+        duration: 760,
+        ease: "Sine.easeInOut",
+        onComplete: () => sparkle.destroy()
+      });
+    });
+  }
+
   private renderSceneProps(props: SceneProp[], immediate = false) {
     const signature = JSON.stringify(props);
     if (signature === this.scenePropsSignature) return;
 
-    this.sceneProps.forEach((prop) => prop.destroy());
-    this.sceneProps = [];
+    const previousProps = this.sceneProps;
+    const fadingProps = new Set<Phaser.GameObjects.Image>();
+    const nextProps: Phaser.GameObjects.Image[] = [];
     this.scenePropsSignature = signature;
 
-    props.forEach((propData) => {
+    props.forEach((propData, index) => {
       const texture = this.resolveScenePropTexture(propData.texture);
       if (!texture) return;
 
       const alpha = propData.alpha ?? 1;
+      const scale = propData.scale ?? 0.46;
+      const previous = previousProps[index];
+
+      if (previous?.texture.key === texture) {
+        this.tweens.killTweensOf(previous);
+        previous
+          .setDepth(propData.depth ?? 31)
+          .setFlipX(propData.flipX ?? false)
+          .setTexture(texture);
+        previous.setData("baseY", propData.y);
+        previous.setData("float", propData.float ?? 0);
+        nextProps.push(previous);
+
+        if (immediate) {
+          previous.setPosition(propData.x, propData.y).setScale(scale).setAlpha(alpha);
+        } else {
+          this.tweens.add({
+            targets: previous,
+            x: propData.x,
+            y: propData.y,
+            scaleX: scale,
+            scaleY: scale,
+            alpha,
+            duration: this.isKissFrameTexture(texture) ? 620 : 300,
+            ease: "Sine.easeInOut"
+          });
+        }
+        return;
+      }
+
+      const softSwap = previous && this.shouldSoftSwapSceneProp(previous.texture.key, texture);
       const prop = this.add
-        .image(propData.x, propData.y, texture)
+        .image(softSwap ? previous.x : propData.x, softSwap ? previous.y : propData.y, texture)
         .setOrigin(0.5, 1)
         .setDepth(propData.depth ?? 31)
-        .setScale(propData.scale ?? 0.46)
+        .setScale(softSwap ? previous.scaleX : scale)
         .setAlpha(immediate ? alpha : 0)
         .setFlipX(propData.flipX ?? false);
 
       prop.setData("baseY", propData.y);
       prop.setData("float", propData.float ?? 0);
       this.uiCamera?.ignore(prop);
-      this.sceneProps.push(prop);
+      nextProps.push(prop);
 
       if (!immediate) {
+        const duration = softSwap ? 620 : 300;
+        if (softSwap) {
+          fadingProps.add(previous);
+          this.tweens.killTweensOf(previous);
+          this.tweens.add({
+            targets: previous,
+            alpha: 0,
+            duration,
+            ease: "Sine.easeInOut",
+            onComplete: () => previous.destroy()
+          });
+        }
         this.tweens.add({
           targets: prop,
+          x: propData.x,
+          y: propData.y,
+          scaleX: scale,
+          scaleY: scale,
           alpha,
-          duration: 260,
-          ease: "Sine.easeOut"
+          duration,
+          ease: "Sine.easeInOut"
         });
       }
     });
+
+    previousProps.forEach((previous) => {
+      if (nextProps.includes(previous) || fadingProps.has(previous)) return;
+      this.tweens.killTweensOf(previous);
+      if (immediate) {
+        previous.destroy();
+        return;
+      }
+      this.tweens.add({
+        targets: previous,
+        alpha: 0,
+        duration: 260,
+        ease: "Sine.easeIn",
+        onComplete: () => previous.destroy()
+      });
+    });
+
+    this.sceneProps = nextProps;
+  }
+
+  private shouldSoftSwapSceneProp(previousTexture: string, nextTexture: string) {
+    if (previousTexture === nextTexture) return true;
+    if (this.isKissFrameTexture(previousTexture) && this.isKissFrameTexture(nextTexture)) return true;
+    if (this.isKissFrameTexture(previousTexture) && nextTexture.startsWith("couple-post-kiss-")) return true;
+    if (previousTexture.startsWith("scene-river-") && nextTexture.startsWith("scene-river-")) return true;
+    if (previousTexture.startsWith("couple-river-sitting-") && this.isKissFrameTexture(nextTexture)) return true;
+    return false;
+  }
+
+  private isKissFrameTexture(texture: string) {
+    return texture.startsWith("couple-almost-kiss-") || texture === "couple-kiss-sitting";
   }
 
   private resolveScenePropTexture(texture: string) {
@@ -1755,11 +1901,11 @@ export class StoryScene extends Phaser.Scene {
     if (!this.shouldAutoAdvance(beat)) return false;
 
     this.autoAdvanceTimer?.remove(false);
-    this.promptText.setText("continua...");
+    this.promptText.setText("");
     this.autoAdvanceTimer = this.time.delayedCall(beat.cinematic?.holdMs ?? 900, () => {
       this.autoAdvanceTimer = undefined;
       if (!this.isTypingDialogue && !this.awaitingChoice) {
-        this.advance();
+        this.advance(true);
       }
     });
 
@@ -1773,6 +1919,10 @@ export class StoryScene extends Phaser.Scene {
         !beat.memory &&
         !beat.completeChapter
     );
+  }
+
+  private isPlayerInputLocked() {
+    return Boolean(this.currentBeat().cinematic?.lockInput && !this.isTypingDialogue);
   }
 
   private clearChoices() {

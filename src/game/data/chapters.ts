@@ -80,11 +80,13 @@ export type StoryBeat = {
     bloom?: number;
     chromatic?: boolean;
     slowmo?: number;
+    magicShift?: boolean;
     locationCard?: { title: string; subtitle?: string };
     whisper?: string;
     holdMs?: number;
     hideDialogue?: boolean;
     persistDialogue?: boolean;
+    lockInput?: boolean;
   };
   pace?: "slow" | "normal" | "fast" | "urgent" | "freeze";
   memory?: {
@@ -1268,7 +1270,7 @@ export const chapters: Chapter[] = [
         id: "river-silence",
         location: "river",
         speaker: "Narrador",
-        text: "Hablaron al lado del rio. Luego el silencio cambio: ya no era incomodo, era lento, suave y peligrosamente bonito.",
+        text: "El rio sonaba igual, pero algo habia cambiado entre ellos: el silencio ya no incomodaba, acercaba.",
         actors: {
           alexis: { x: 350, y: 378, mood: "nervous", facing: "right", visible: false },
           kiara: { x: 524, y: 378, mood: "shy", facing: "left", visible: false }
@@ -1285,39 +1287,18 @@ export const chapters: Chapter[] = [
           heartbeat: 0.7,
           intimate: true,
           bloom: 0.08,
-          chromatic: true
+          chromatic: true,
+          magicShift: true,
+          whisper: "algo bonito estaba por ocurrir"
         },
-        pace: "slow",
-        choices: [
-          {
-            id: "kiss-closer",
-            label: "Acercarse despacio.",
-            resultSpeaker: "Narrador",
-            resultText: "Alexis se acerco apenas. Kiara no se alejo. El rio siguio hablando por los dos, bajito, como pidiendo cuidado.",
-            stat: { id: "ternura", label: "Ternura" }
-          },
-          {
-            id: "kiss-smile",
-            label: "Mirarla y sonreir.",
-            resultSpeaker: "Narrador",
-            resultText: "Una sonrisa pequena basto para decir lo que ninguno se animaba a decir todavia.",
-            stat: { id: "sueno", label: "Sueno compartido" }
-          },
-          {
-            id: "kiss-river",
-            label: "Decir algo nervioso del rio.",
-            resultSpeaker: "Alexis",
-            resultText: "El rio suena bonito, no? Si, Alexis. Muy poetico. Muy obvio. Muy tu.",
-            stat: { id: "nervios", label: "Nervios" }
-          }
-        ]
+        pace: "slow"
       },
       {
         id: "almost-kiss",
         location: "river",
         speaker: "Narrador",
         text:
-          "El espacio entre los dos empezo a hacerse pequeno. No de golpe. Despacito, con esa paciencia que tienen los momentos que importan.",
+          "Alexis se acerco apenas. Kiara no se alejo. El rio siguio hablando por los dos, bajito, como pidiendo cuidado.",
         actors: {
           alexis: { x: 350, y: 378, mood: "nervous", facing: "right", visible: false },
           kiara: { x: 524, y: 378, mood: "shy", facing: "left", visible: false }
@@ -1326,7 +1307,7 @@ export const chapters: Chapter[] = [
           { texture: "scene-river-close-faces", x: 480, y: 540, scale: 1, depth: 23 },
           { texture: "couple-almost-kiss-01", x: 480, y: 512, scale: 0.66, depth: 32, float: 0.28 }
         ],
-        camera: { zoom: 1.26, x: 478, y: 372, duration: 1400, driftX: 0.6, driftY: 0.6, driftSpeed: 0.2 },
+        camera: { zoom: 1.255, x: 478, y: 372, duration: 1600, driftX: 0.45, driftY: 0.45, driftSpeed: 0.18 },
         cinematic: {
           letterbox: 34,
           warmth: 0.09,
@@ -1337,7 +1318,8 @@ export const chapters: Chapter[] = [
           chromatic: true,
           slowmo: 0.18,
           whisper: "el mundo se hizo pequenito",
-          holdMs: 1250
+          holdMs: 1300,
+          lockInput: true
         },
         pace: "slow"
       },
@@ -1354,7 +1336,7 @@ export const chapters: Chapter[] = [
           { texture: "scene-river-close-faces", x: 480, y: 540, scale: 1, depth: 23 },
           { texture: "couple-almost-kiss-02", x: 480, y: 512, scale: 0.68, depth: 32, float: 0.28 }
         ],
-        camera: { zoom: 1.3, x: 478, y: 374, duration: 1500, driftX: 0.4, driftY: 0.4, driftSpeed: 0.18 },
+        camera: { zoom: 1.27, x: 478, y: 373, duration: 1700, driftX: 0.34, driftY: 0.34, driftSpeed: 0.16 },
         cinematic: {
           letterbox: 36,
           warmth: 0.1,
@@ -1364,8 +1346,9 @@ export const chapters: Chapter[] = [
           bloom: 0.12,
           chromatic: true,
           slowmo: 0.28,
-          holdMs: 900,
-          persistDialogue: true
+          holdMs: 960,
+          persistDialogue: true,
+          lockInput: true
         },
         pace: "slow"
       },
@@ -1382,7 +1365,7 @@ export const chapters: Chapter[] = [
           { texture: "scene-river-close-faces", x: 480, y: 540, scale: 1, depth: 23 },
           { texture: "couple-almost-kiss-03", x: 480, y: 512, scale: 0.7, depth: 32, float: 0.28 }
         ],
-        camera: { zoom: 1.34, x: 478, y: 376, duration: 1500, driftX: 0.35, driftY: 0.35, driftSpeed: 0.16 },
+        camera: { zoom: 1.285, x: 478, y: 374, duration: 1750, driftX: 0.28, driftY: 0.28, driftSpeed: 0.14 },
         cinematic: {
           letterbox: 38,
           warmth: 0.11,
@@ -1393,8 +1376,9 @@ export const chapters: Chapter[] = [
           chromatic: true,
           slowmo: 0.45,
           whisper: "...",
-          holdMs: 1050,
-          persistDialogue: true
+          holdMs: 1040,
+          persistDialogue: true,
+          lockInput: true
         },
         pace: "freeze"
       },
@@ -1411,7 +1395,7 @@ export const chapters: Chapter[] = [
           { texture: "scene-river-close-faces", x: 480, y: 540, scale: 1, depth: 23 },
           { texture: "couple-almost-kiss-04", x: 480, y: 512, scale: 0.71, depth: 32, float: 0.24 }
         ],
-        camera: { zoom: 1.36, x: 478, y: 377, duration: 1200, driftX: 0.3, driftY: 0.3, driftSpeed: 0.14 },
+        camera: { zoom: 1.3, x: 478, y: 375, duration: 1650, driftX: 0.24, driftY: 0.24, driftSpeed: 0.13 },
         cinematic: {
           letterbox: 40,
           warmth: 0.115,
@@ -1421,8 +1405,9 @@ export const chapters: Chapter[] = [
           bloom: 0.16,
           chromatic: true,
           slowmo: 0.5,
-          holdMs: 850,
-          persistDialogue: true
+          holdMs: 900,
+          persistDialogue: true,
+          lockInput: true
         },
         pace: "freeze"
       },
@@ -1439,21 +1424,21 @@ export const chapters: Chapter[] = [
           { texture: "scene-river-close-faces", x: 480, y: 540, scale: 1, depth: 23 },
           { texture: "couple-kiss-sitting", x: 480, y: 512, scale: 0.72, depth: 32, float: 0.28 }
         ],
-        camera: { zoom: 1.38, x: 478, y: 378, duration: 1550, driftX: 0.25, driftY: 0.25, driftSpeed: 0.14 },
+        camera: { zoom: 1.315, x: 478, y: 376, duration: 1750, driftX: 0.2, driftY: 0.2, driftSpeed: 0.12 },
         cinematic: {
           letterbox: 42,
           warmth: 0.12,
           vignette: 0.12,
-          flash: true,
-          shake: 0.0015,
-          shakeDuration: 260,
+          shake: 0.0007,
+          shakeDuration: 180,
           heartbeat: 0.4,
           intimate: true,
           bloom: 0.22,
           chromatic: true,
           slowmo: 0.55,
-          holdMs: 1450,
-          persistDialogue: true
+          holdMs: 1500,
+          persistDialogue: true,
+          lockInput: true
         },
         pace: "slow"
       },
@@ -1470,7 +1455,7 @@ export const chapters: Chapter[] = [
           { texture: "scene-river-close-faces", x: 480, y: 540, scale: 1, depth: 23 },
           { texture: "couple-kiss-sitting", x: 480, y: 512, scale: 0.72, depth: 32, float: 0.28 }
         ],
-        camera: { zoom: 1.42, x: 478, y: 380, duration: 1500, driftX: 0.2, driftY: 0.2, driftSpeed: 0.12 },
+        camera: { zoom: 1.328, x: 478, y: 377, duration: 1700, driftX: 0.18, driftY: 0.18, driftSpeed: 0.11 },
         cinematic: {
           letterbox: 44,
           warmth: 0.13,
@@ -1479,8 +1464,9 @@ export const chapters: Chapter[] = [
           bloom: 0.18,
           chromatic: true,
           slowmo: 0.4,
-          holdMs: 900,
-          persistDialogue: true
+          holdMs: 980,
+          persistDialogue: true,
+          lockInput: true
         },
         pace: "slow"
       },
@@ -1497,7 +1483,7 @@ export const chapters: Chapter[] = [
           { texture: "scene-river-close-faces", x: 480, y: 540, scale: 1, depth: 23 },
           { texture: "couple-kiss-sitting", x: 480, y: 512, scale: 0.72, depth: 32, float: 0.28 }
         ],
-        camera: { zoom: 1.44, x: 478, y: 380, duration: 1450, driftX: 0.2, driftY: 0.2, driftSpeed: 0.12 },
+        camera: { zoom: 1.34, x: 478, y: 378, duration: 1700, driftX: 0.16, driftY: 0.16, driftSpeed: 0.1 },
         cinematic: {
           letterbox: 44,
           warmth: 0.14,
@@ -1507,7 +1493,8 @@ export const chapters: Chapter[] = [
           chromatic: true,
           slowmo: 0.32,
           holdMs: 900,
-          persistDialogue: true
+          persistDialogue: true,
+          lockInput: true
         },
         pace: "slow"
       },
@@ -1539,7 +1526,7 @@ export const chapters: Chapter[] = [
         id: "chapter-1-end",
         location: "river",
         speaker: "Narrador",
-        text: "Desde ese dia, ese lugar dejo de ser solo un rio. Fue donde el valle los vio imaginar una casa, reir bajito y besarse por primera vez.",
+        text: "Desde ese dia, ese rinconcito junto al rio dejo de ser paisaje. Fue donde el valle los vio imaginar una casa, reir bajito y guardar su primer beso.",
         actors: {
           alexis: { x: 366, y: 378, mood: "finale", facing: "right", visible: false },
           kiara: { x: 526, y: 378, mood: "finale", facing: "left", visible: false }
