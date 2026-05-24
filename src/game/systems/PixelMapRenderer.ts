@@ -113,8 +113,11 @@ export class PixelMapRenderer {
       const layers: LayerSprite[] = [];
 
       for (const layerName of layerNames) {
+        const textureKey = `bg-${location}-${layerName}`;
+        if (!this.scene.textures.exists(textureKey)) continue;
+
         const layer = this.scene.add
-          .tileSprite(480, 270, 960, 540, `bg-${location}-${layerName}`)
+          .tileSprite(480, 270, 960, 540, textureKey)
           .setDepth(layerDepths[layerName])
           .setVisible(false) as LayerSprite;
 

@@ -49,8 +49,28 @@ export class BootScene extends Phaser.Scene {
 
     for (const location of locations) {
       for (const layer of layers) {
+        if (location === "bosquete" && layer === "front") continue;
         this.load.image(`bg-${location}-${layer}`, `/assets/chapter-1/${location}/${layer}.png`);
       }
+    }
+
+    const sceneBackdrops = [
+      ["taxi-back-close-day", "/assets/chapter-1/taxi/back-close-day.png"],
+      ["taxi-back-day-side-window", "/assets/chapter-1/taxi/back-day-side-window.png"],
+      ["hospital-wide-old", "/assets/chapter-1/hospital/hospital.png"],
+      ["hospital-entrance-day", "/assets/chapter-1/hospital/entrance-day.png"],
+      ["hospital-entrance-close-day", "/assets/chapter-1/hospital/entrance-close-day.png"],
+      ["road-golden-path", "/assets/chapter-1/road/sky.png"],
+      ["bosquete-clearing", "/assets/chapter-1/bosquete/clearing.png"],
+      ["valley-cima-close", "/assets/chapter-1/valley/cima-close.png"],
+      ["ravine-path-down", "/assets/chapter-1/ravine/path-down.png"],
+      ["river-arrival-wide", "/assets/chapter-1/river/llegara%20al%20rio.png"],
+      ["river-picnic-spot", "/assets/chapter-1/river/picnic-spot.png"],
+      ["river-close-faces", "/assets/chapter-1/river/close-faces.png"]
+    ] as const;
+
+    for (const [key, path] of sceneBackdrops) {
+      this.load.image(`scene-${key}`, path);
     }
 
     const sharedExpressions = [
@@ -77,7 +97,13 @@ export class BootScene extends Phaser.Scene {
       "laughing-soft",
       "trying-cool",
       "breathless",
-      "after-kiss-shy"
+      "after-kiss-shy",
+      "lean-in",
+      "lean-in-soft-alt",
+      "closed-eyes",
+      "hand-on-cheek",
+      "looking-phone",
+      "wide-eyes-love"
     ] as const;
 
     const kiaraExpressions = [
@@ -89,7 +115,12 @@ export class BootScene extends Phaser.Scene {
       "surprised-soft",
       "caring",
       "close-nervous",
-      "after-kiss-blush"
+      "after-kiss-blush",
+      "lean-in",
+      "closed-eyes",
+      "hand-near-mouth",
+      "looking-down-soft",
+      "pointing-snacks"
     ] as const;
 
     for (const expression of sharedExpressions) {
@@ -119,6 +150,10 @@ export class BootScene extends Phaser.Scene {
       "kiss",
       "hug",
       "hospital-meet-nervous",
+      "hospital-meet-close",
+      "hospital-meet-wide",
+      "taxi-back-seat",
+      "taxi-driver",
       "walking-side-01",
       "walking-side-02",
       "walking-side-03",
@@ -132,11 +167,23 @@ export class BootScene extends Phaser.Scene {
       "river-sitting-normal",
       "river-sitting-snacks",
       "river-sitting-close",
+      "river-sitting-normal-grounded",
+      "river-sitting-normal-grounded-alt",
+      "river-sitting-snacks-grounded",
+      "river-sitting-close-grounded",
       "almost-kiss-01",
       "almost-kiss-02",
       "almost-kiss-03",
+      "almost-kiss-04",
       "kiss-sitting",
-      "after-kiss-shy"
+      "after-kiss-shy",
+      "walking-hand-touch",
+      "laugh-shared",
+      "post-kiss-shy",
+      "valley-side-by-side",
+      "nurse",
+      "older-woman",
+      "cafeteria-lady"
     ] as const;
 
     for (const scene of coupleScenes) {
@@ -150,6 +197,7 @@ export class BootScene extends Phaser.Scene {
     }
 
     this.load.image("prop-purple-moto", "/assets/props/purple-moto.png");
+    this.load.image("prop-taxi", "/assets/props/taxi.png");
   }
 
   create() {

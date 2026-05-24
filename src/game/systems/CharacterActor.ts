@@ -42,14 +42,17 @@ export class CharacterActor {
   }
 
   applyBeat(state: ActorBeatState, immediate = false) {
+    const wasVisible = this.container.visible;
+    const willBeVisible = state.visible ?? true;
+
     this.mood = state.mood;
-    this.container.setVisible(state.visible ?? true);
+    this.container.setVisible(willBeVisible);
     this.sprite.setTexture(this.textureForState(state));
     this.sprite.setFlipX(state.facing === "left");
     this.sprite.setScale(state.scale ?? 0.46);
     this.reaction = state.reaction ?? "";
     this.reactionText.setText(this.reaction);
-    this.reactionText.setVisible(Boolean(this.reaction) && (state.visible ?? true));
+    this.reactionText.setVisible(Boolean(this.reaction) && willBeVisible);
 
     const target = {
       x: state.x,
@@ -58,7 +61,7 @@ export class CharacterActor {
       scaleY: state.scale ? state.scale / 0.46 : 1
     };
 
-    if (immediate) {
+    if (immediate || !willBeVisible || (!wasVisible && willBeVisible)) {
       this.container.setPosition(target.x, target.y);
       this.container.setScale(target.scaleX, target.scaleY);
       return;

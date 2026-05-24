@@ -99,6 +99,7 @@ export class StoryScene extends Phaser.Scene {
   private memoryMarkerBaseY = 0;
   private memoryMarkerBaseScale = 0.82;
   private dialogueTimer?: Phaser.Time.TimerEvent;
+  private autoAdvanceTimer?: Phaser.Time.TimerEvent;
   private fullDialogueText = "";
   private isTypingDialogue = false;
   private typingShowsChoices = false;
@@ -130,8 +131,10 @@ export class StoryScene extends Phaser.Scene {
     this.sceneProps = [];
     this.scenePropsSignature = "";
     this.dialogueTimer?.remove(false);
+    this.autoAdvanceTimer?.remove(false);
     this.cameraSettleTimer?.remove(false);
     this.dialogueTimer = undefined;
+    this.autoAdvanceTimer = undefined;
     this.cameraSettleTimer = undefined;
     this.fullDialogueText = "";
     this.isTypingDialogue = false;
@@ -495,13 +498,24 @@ export class StoryScene extends Phaser.Scene {
 
   private applyBeat(beat: StoryBeat, immediate = false) {
     const previousLocation = (this as { _prevLocation?: LocationId })._prevLocation;
+    this.autoAdvanceTimer?.remove(false);
+    this.autoAdvanceTimer = undefined;
     this.map.setLocation(beat.location);
     this.particles.setLocation(beat.location, immediate);
     this.locationText.setText(`${this.chapter.title}  /  ${locationLabels[beat.location]}`);
     this.speakerText.setText(beat.speaker);
     this.clearChoices();
     this.currentPace = beat.pace ?? "normal";
-    this.startDialogueText(beat.text, Boolean(beat.choices?.length));
+    if (beat.cinematic?.persistDialogue) {
+      this.dialogueTimer?.remove(false);
+      this.dialogueTimer = undefined;
+      this.isTypingDialogue = false;
+      this.typingShowsChoices = false;
+      this.scheduleAutoAdvance(beat);
+    } else {
+      this.startDialogueText(beat.text, Boolean(beat.choices?.length));
+    }
+    this.dialogueBox.setVisible(!beat.cinematic?.hideDialogue);
 
     this.actors.alexis.applyBeat(beat.actors.alexis, immediate);
     this.actors.kiara.applyBeat(beat.actors.kiara, immediate);
@@ -557,6 +571,9 @@ export class StoryScene extends Phaser.Scene {
   }
 
   private advance() {
+    this.autoAdvanceTimer?.remove(false);
+    this.autoAdvanceTimer = undefined;
+
     if (this.isTypingDialogue) {
       this.completeDialogueText();
       return;
@@ -1078,7 +1095,7 @@ export class StoryScene extends Phaser.Scene {
     this.whisperText = undefined;
     if (!text) return;
     const whisper = this.add
-      .text(480, 196, text, {
+      .text(480, 158, text, {
         fontFamily: "Courier New",
         fontSize: "15px",
         fontStyle: "italic",
@@ -1095,7 +1112,7 @@ export class StoryScene extends Phaser.Scene {
     this.tweens.add({
       targets: whisper,
       alpha: 0.85,
-      y: 184,
+      y: 146,
       duration: 600,
       ease: "Sine.easeOut"
     });
@@ -1726,7 +1743,36 @@ export class StoryScene extends Phaser.Scene {
       return;
     }
 
+    const beat = this.currentBeat();
+    if (this.scheduleAutoAdvance(beat)) {
+      return;
+    }
+
     this.promptText.setText("toca para seguir");
+  }
+
+  private scheduleAutoAdvance(beat: StoryBeat) {
+    if (!this.shouldAutoAdvance(beat)) return false;
+
+    this.autoAdvanceTimer?.remove(false);
+    this.promptText.setText("continua...");
+    this.autoAdvanceTimer = this.time.delayedCall(beat.cinematic?.holdMs ?? 900, () => {
+      this.autoAdvanceTimer = undefined;
+      if (!this.isTypingDialogue && !this.awaitingChoice) {
+        this.advance();
+      }
+    });
+
+    return true;
+  }
+
+  private shouldAutoAdvance(beat: StoryBeat) {
+    return Boolean(
+      beat.cinematic?.holdMs &&
+        !beat.choices?.length &&
+        !beat.memory &&
+        !beat.completeChapter
+    );
   }
 
   private clearChoices() {
