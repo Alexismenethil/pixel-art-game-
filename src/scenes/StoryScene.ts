@@ -13,6 +13,7 @@ import {
 import { CharacterActor } from "../game/systems/CharacterActor";
 import { ParticleField } from "../game/systems/ParticleField";
 import { PixelMapRenderer } from "../game/systems/PixelMapRenderer";
+import { AmbienceEngine } from "../game/systems/AmbienceEngine";
 import {
   addMemory,
   addStoryStat,
@@ -58,6 +59,7 @@ export class StoryScene extends Phaser.Scene {
   private chapter!: Chapter;
   private beatIndex = 0;
   private map!: PixelMapRenderer;
+  private ambience!: AmbienceEngine;
   private actors!: Record<ActorId, CharacterActor>;
   private progress = loadProgress();
   private uiCamera!: Phaser.Cameras.Scene2D.Camera;
@@ -70,6 +72,7 @@ export class StoryScene extends Phaser.Scene {
   private scoreText!: Phaser.GameObjects.Text;
   private memoryCounterText!: Phaser.GameObjects.Text;
   private guideToggle!: Phaser.GameObjects.Text;
+  private audioToggle!: Phaser.GameObjects.Text;
   private cinematicTopBar!: Phaser.GameObjects.Rectangle;
   private cinematicBottomBar!: Phaser.GameObjects.Rectangle;
   private warmthOverlay!: Phaser.GameObjects.Rectangle;
@@ -108,9 +111,11 @@ export class StoryScene extends Phaser.Scene {
   private cameraSettling = false;
   private cameraSettleTimer?: Phaser.Time.TimerEvent;
   private backgroundMusic?: HTMLAudioElement;
+  private activeMusicUrl?: string;
   private triedBackgroundMusic = false;
   private awaitingChoice = false;
   private guidesVisible = true;
+  private audioEnabled = false;
   private isTransitioning = false;
 
   constructor() {
@@ -145,6 +150,8 @@ export class StoryScene extends Phaser.Scene {
     this.backgroundMusic?.pause();
     this.backgroundMusic = undefined;
     this.triedBackgroundMusic = false;
+    this.ambience?.destroy();
+    this.audioEnabled = false;
     this.smsNotification?.destroy();
     this.smsNotification = undefined;
     this.pendingSmsNotificationSound = false;
@@ -169,6 +176,14 @@ export class StoryScene extends Phaser.Scene {
       kiara: new CharacterActor(this, "kiara", 540, 430, 0.8)
     };
 
+    if (this.ambience) {
+      this.ambience.destroy();
+    }
+    this.ambience = new AmbienceEngine();
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.ambience?.destroy();
+    });
+
     this.createDialogueUi();
     this.createTopControls();
     this.createCinematicUi();
@@ -177,12 +192,12 @@ export class StoryScene extends Phaser.Scene {
 
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       if (this.isTransitioning) return;
-      void this.tryStartBackgroundMusic();
       if (this.pendingSmsNotificationSound) {
         this.pendingSmsNotificationSound = false;
-        this.playSmsNotificationSound();
+        if (this.audioEnabled) this.playSmsNotificationSound();
       }
       if (this.isPlayerInputLocked()) return;
+      if (this.tryToggleAudio(pointer)) return;
       if (this.tryToggleGuides(pointer)) return;
       if (this.isTypingDialogue) {
         if (this.tryCollectMemory(pointer)) return;
@@ -200,6 +215,7 @@ export class StoryScene extends Phaser.Scene {
 
     this.input.keyboard?.on("keydown-SPACE", () => this.advance());
     this.input.keyboard?.on("keydown-ENTER", () => this.advance());
+    this.input.keyboard?.on("keydown-M", () => this.toggleAudio());
     this.input.keyboard?.on("keydown-H", () => this.toggleGuides());
     this.input.keyboard?.on("keydown-ESC", () => this.scene.start("HomeScene"));
 
@@ -316,6 +332,19 @@ export class StoryScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setInteractive({ useHandCursor: true });
 
+    this.audioToggle = this.add
+      .text(808, 70, "audio: off", {
+        fontFamily: "Courier New",
+        fontSize: "16px",
+        fontStyle: "bold",
+        color: "#fff2dc",
+        backgroundColor: "#10131acc",
+        padding: { x: 12, y: 8 }
+      })
+      .setDepth(85)
+      .setScrollFactor(0)
+      .setInteractive({ useHandCursor: true });
+
     this.updateScoreText();
     this.updateMemoryCounterText();
   }
@@ -377,6 +406,7 @@ export class StoryScene extends Phaser.Scene {
       this.scoreText,
       this.memoryCounterText,
       this.guideToggle,
+      this.audioToggle,
       this.warmthOverlay,
       this.vignetteTop,
       this.vignetteBottom,
@@ -507,6 +537,10 @@ export class StoryScene extends Phaser.Scene {
     this.autoAdvanceTimer = undefined;
     this.map.setLocation(beat.location);
     this.particles.setLocation(beat.location, immediate);
+    if (this.audioEnabled) {
+      this.ambience.setLocationAmbience(beat.location, immediate);
+      void this.updateBackgroundMusicForLocation(beat.location);
+    }
     this.locationText.setText(`${this.chapter.title}  /  ${locationLabels[beat.location]}`);
     this.speakerText.setText(beat.speaker);
     this.clearChoices();
@@ -535,6 +569,10 @@ export class StoryScene extends Phaser.Scene {
     this.heartbeatIntensity = heartbeat;
     if (!immediate && heartbeat > 0) {
       this.heartbeatPulse = Math.max(this.heartbeatPulse, 0.65);
+    }
+    if (this.audioEnabled) {
+      this.ambience.setHeartbeat(heartbeat);
+      this.ambience.setIntimate(Boolean(beat.cinematic?.intimate), immediate);
     }
 
     if (previousLocation !== beat.location) {
@@ -1166,6 +1204,9 @@ export class StoryScene extends Phaser.Scene {
   }
 
   private playMagicSceneShift() {
+    if (this.audioEnabled) {
+      this.ambience.playMagicShiftSound();
+    }
     const veil = this.add
       .rectangle(0, 0, 960, 540, 0xe7d6ff, 0)
       .setOrigin(0)
@@ -1366,45 +1407,93 @@ export class StoryScene extends Phaser.Scene {
     return undefined;
   }
 
-  private async tryStartBackgroundMusic() {
-    if (this.triedBackgroundMusic || this.backgroundMusic) return;
+  private async updateBackgroundMusicForLocation(location: LocationId) {
+    if (!this.audioEnabled) return;
 
-    this.triedBackgroundMusic = true;
-    const url = await this.findBackgroundMusicUrl();
-    if (!url) return;
+    const url = await this.findLocationMusicUrl(location);
+    if (!url) {
+      // Fallback to generative procedural music
+      if (this.backgroundMusic) {
+        this.fadeOutBackgroundMusic();
+      }
+      this.ambience.startMusic(false);
+      return;
+    }
 
-    const audio = new Audio(url);
-    audio.loop = true;
-    audio.volume = 0;
-    this.backgroundMusic = audio;
+    if (this.activeMusicUrl === url) {
+      // Already playing the correct track
+      return;
+    }
+
+    // Stop procedural music if it's running
+    this.ambience.stopMusic(false);
+
+    const oldMusic = this.backgroundMusic;
+    const newMusic = new Audio(url);
+    newMusic.loop = true;
+    newMusic.volume = 0;
+
+    this.activeMusicUrl = url;
+    this.backgroundMusic = newMusic;
 
     try {
-      await audio.play();
+      await newMusic.play();
       this.tweens.addCounter({
         from: 0,
         to: 0.16,
-        duration: 1600,
+        duration: 1500, // Smooth fade-in
         ease: "Sine.easeOut",
         onUpdate: (tween) => {
-          if (this.backgroundMusic) {
-            this.backgroundMusic.volume = tween.getValue() ?? 0;
+          if (this.backgroundMusic === newMusic) {
+            newMusic.volume = tween.getValue() ?? 0;
           }
         }
       });
-    } catch {
-      this.backgroundMusic = undefined;
+    } catch (e) {
+      console.warn("Failed to play background music:", e);
+      if (this.backgroundMusic === newMusic) {
+        this.backgroundMusic = undefined;
+        this.activeMusicUrl = undefined;
+      }
+    }
+
+    // Smoothly crossfade/fadeout the old music
+    if (oldMusic) {
+      this.tweens.addCounter({
+        from: oldMusic.volume,
+        to: 0,
+        duration: 1200, // Smooth fade-out
+        ease: "Sine.easeIn",
+        onUpdate: (tween) => {
+          oldMusic.volume = tween.getValue() ?? 0;
+        },
+        onComplete: () => {
+          oldMusic.pause();
+          oldMusic.currentTime = 0;
+        }
+      });
     }
   }
 
-  private async findBackgroundMusicUrl() {
-    const candidates = [`/assets/audio/${this.chapter.id}.mp3`, `/assets/audio/${this.chapter.id}.ogg`];
+  private async findLocationMusicUrl(location: LocationId) {
+    // Dynamic music lookup priority:
+    // 1. location-specific WAV (synthesized high fidelity)
+    // 2. location-specific MP3
+    // 3. general chapter WAV
+    // 4. general chapter MP3
+    const candidates = [
+      `/assets/audio/${this.chapter.id}-${location}.wav`,
+      `/assets/audio/${this.chapter.id}-${location}.mp3`,
+      `/assets/audio/${this.chapter.id}.wav`,
+      `/assets/audio/${this.chapter.id}.mp3`
+    ];
 
     for (const url of candidates) {
       try {
         const response = await fetch(url, { method: "HEAD" });
         if (response.ok) return url;
       } catch {
-        // Missing music is fine while the soundtrack is still being composed.
+        // Continue
       }
     }
 
@@ -1413,22 +1502,26 @@ export class StoryScene extends Phaser.Scene {
 
   private fadeOutBackgroundMusic() {
     const music = this.backgroundMusic;
-    if (!music) return;
+    if (music) {
+      this.backgroundMusic = undefined;
+      this.activeMusicUrl = undefined;
+      this.tweens.addCounter({
+        from: music.volume,
+        to: 0,
+        duration: 900,
+        ease: "Sine.easeIn",
+        onUpdate: (tween) => {
+          music.volume = tween.getValue() ?? 0;
+        },
+        onComplete: () => {
+          music.pause();
+          music.currentTime = 0;
+        }
+      });
+    }
 
-    this.backgroundMusic = undefined;
-    this.tweens.addCounter({
-      from: music.volume,
-      to: 0,
-      duration: 900,
-      ease: "Sine.easeIn",
-      onUpdate: (tween) => {
-        music.volume = tween.getValue() ?? 0;
-      },
-      onComplete: () => {
-        music.pause();
-        music.currentTime = 0;
-      }
-    });
+    // Always stop the procedural music
+    this.ambience.stopMusic(false);
   }
 
   private updateSmsNotification(beat: StoryBeat, immediate = false) {
@@ -1516,62 +1609,23 @@ export class StoryScene extends Phaser.Scene {
   }
 
   private playSmsNotificationSound() {
-    const context = this.createAudioContext();
-    if (!context) return;
-
-    const output = this.createEchoBus(context, 0.86, 0.09, 0.08, 0.12);
-    const now = context.currentTime;
-
-    this.scheduleTone(context, output, 880, now, 0.16, 0.052, "sine");
-    this.scheduleTone(context, output, 1318.51, now + 0.09, 0.18, 0.046, "sine");
-    this.scheduleTone(context, output, 1760, now + 0.19, 0.2, 0.032, "triangle");
-
-    window.setTimeout(() => {
-      void context.close();
-    }, 700);
+    if (!this.audioEnabled) return;
+    this.ambience?.playSmsNotificationSound();
   }
 
   private playScoreChime(statId: StoryStatId) {
-    const context = this.createAudioContext();
-    if (!context) return;
+    if (!this.audioEnabled) return;
+    this.ambience?.playScoreChime(statId);
+  }
 
-    const output = this.createEchoBus(context, 0.9, 0.18, 0.16, 0.22);
-    const now = context.currentTime;
+  private playMemoryRevealChime() {
+    if (!this.audioEnabled) return;
+    this.ambience?.playMemoryRevealChime();
+  }
 
-    if (statId === "ternura") {
-      [
-        { frequency: 659.25, delay: 0, volume: 0.044 },
-        { frequency: 783.99, delay: 0.08, volume: 0.038 },
-        { frequency: 1046.5, delay: 0.18, volume: 0.032 }
-      ].forEach(({ frequency, delay, volume }) => {
-        this.scheduleTone(context, output, frequency, now + delay, 0.42, volume, "sine");
-      });
-    } else if (statId === "nervios") {
-      [
-        { frequency: 466.16, delay: 0, volume: 0.036 },
-        { frequency: 440, delay: 0.06, volume: 0.032 },
-        { frequency: 523.25, delay: 0.14, volume: 0.028 },
-        { frequency: 493.88, delay: 0.2, volume: 0.022 }
-      ].forEach(({ frequency, delay, volume }) => {
-        this.scheduleTone(context, output, frequency, now + delay, 0.18, volume, "triangle");
-      });
-      this.scheduleNoise(context, output, now, 0.22, 0.006, 1600, "highpass");
-    } else {
-      [
-        { frequency: 523.25, delay: 0, volume: 0.032 },
-        { frequency: 659.25, delay: 0.11, volume: 0.036 },
-        { frequency: 783.99, delay: 0.24, volume: 0.032 },
-        { frequency: 987.77, delay: 0.39, volume: 0.028 },
-        { frequency: 1174.66, delay: 0.56, volume: 0.022 }
-      ].forEach(({ frequency, delay, volume }) => {
-        this.scheduleTone(context, output, frequency, now + delay, 0.58, volume, "sine");
-      });
-      this.scheduleTone(context, output, 196, now, 1.1, 0.014, "triangle");
-    }
-
-    window.setTimeout(() => {
-      void context.close();
-    }, 1500);
+  private playMemoryChime() {
+    if (!this.audioEnabled) return;
+    this.ambience?.playMemoryChime();
   }
 
   private playMemoryCollectBurst(x: number, y: number, text = "guardado") {
@@ -1647,192 +1701,51 @@ export class StoryScene extends Phaser.Scene {
     this.time.delayedCall(1100, () => burst.destroy());
   }
 
-  private playMemoryRevealChime() {
-    const context = this.createAudioContext();
-    if (!context) return;
-
-    const output = context.createGain();
-    const delay = context.createDelay();
-    const feedback = context.createGain();
-    const wet = context.createGain();
-    const now = context.currentTime;
-
-    output.gain.setValueAtTime(0.78, now);
-    delay.delayTime.setValueAtTime(0.16, now);
-    feedback.gain.setValueAtTime(0.1, now);
-    wet.gain.setValueAtTime(0.24, now);
-    output.connect(context.destination);
-    output.connect(delay);
-    delay.connect(feedback);
-    feedback.connect(delay);
-    delay.connect(wet);
-    wet.connect(context.destination);
-
-    this.scheduleTone(context, output, 659.25, now, 0.34, 0.028, "triangle");
-    this.scheduleTone(context, output, 880, now + 0.06, 0.34, 0.038, "sine");
-    this.scheduleTone(context, output, 1174.66, now + 0.16, 0.42, 0.032, "sine");
-    this.scheduleTone(context, output, 1567.98, now + 0.27, 0.3, 0.02, "triangle");
-
-    window.setTimeout(() => {
-      void context.close();
-    }, 1000);
-  }
-
-  private playMemoryChime() {
-    const context = this.createAudioContext();
-    if (!context) return;
-
-    const output = context.createGain();
-    const delay = context.createDelay();
-    const feedback = context.createGain();
-    const wet = context.createGain();
-    const now = context.currentTime;
-
-    output.gain.setValueAtTime(0.92, now);
-    delay.delayTime.setValueAtTime(0.21, now);
-    feedback.gain.setValueAtTime(0.2, now);
-    wet.gain.setValueAtTime(0.3, now);
-
-    output.connect(context.destination);
-    output.connect(delay);
-    delay.connect(feedback);
-    feedback.connect(delay);
-    delay.connect(wet);
-    wet.connect(context.destination);
-
-    [
-      { frequency: 392, delay: 0, volume: 0.026, duration: 0.9, type: "triangle" as OscillatorType },
-      { frequency: 523.25, delay: 0.02, volume: 0.048, duration: 0.62, type: "sine" as OscillatorType },
-      { frequency: 659.25, delay: 0.1, volume: 0.056, duration: 0.62, type: "sine" as OscillatorType },
-      { frequency: 783.99, delay: 0.2, volume: 0.058, duration: 0.6, type: "sine" as OscillatorType },
-      { frequency: 1046.5, delay: 0.34, volume: 0.046, duration: 0.54, type: "triangle" as OscillatorType },
-      { frequency: 1318.51, delay: 0.47, volume: 0.034, duration: 0.46, type: "sine" as OscillatorType },
-      { frequency: 1567.98, delay: 0.58, volume: 0.026, duration: 0.34, type: "sine" as OscillatorType }
-    ].forEach(({ frequency, delay, volume, duration, type }) => {
-      this.scheduleTone(context, output, frequency, now + delay, duration, volume, type);
-    });
-
-    [
-      { frequency: 1760, delay: 0.24 },
-      { frequency: 2093, delay: 0.42 },
-      { frequency: 2637.02, delay: 0.64 }
-    ].forEach(({ frequency, delay }) => {
-      this.scheduleTone(context, output, frequency, now + delay, 0.2, 0.016, "triangle");
-    });
-
-    window.setTimeout(() => {
-      void context.close();
-    }, 1900);
-  }
-
-  private createAudioContext() {
-    const AudioContextCtor =
-      window.AudioContext ??
-      (window as Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext })
-        .webkitAudioContext;
-    if (!AudioContextCtor) return undefined;
-
-    const context = new AudioContextCtor();
-    if (context.state === "suspended") {
-      void context.resume();
-    }
-    return context;
-  }
-
-  private createEchoBus(
-    context: AudioContext,
-    outputVolume: number,
-    delayTime: number,
-    feedbackAmount: number,
-    wetAmount: number
-  ) {
-    const output = context.createGain();
-    const delay = context.createDelay();
-    const feedback = context.createGain();
-    const wet = context.createGain();
-
-    output.gain.setValueAtTime(outputVolume, context.currentTime);
-    delay.delayTime.setValueAtTime(delayTime, context.currentTime);
-    feedback.gain.setValueAtTime(feedbackAmount, context.currentTime);
-    wet.gain.setValueAtTime(wetAmount, context.currentTime);
-
-    output.connect(context.destination);
-    output.connect(delay);
-    delay.connect(feedback);
-    feedback.connect(delay);
-    delay.connect(wet);
-    wet.connect(context.destination);
-
-    return output;
-  }
-
-  private scheduleTone(
-    context: AudioContext,
-    destination: AudioNode,
-    frequency: number,
-    start: number,
-    duration: number,
-    volume: number,
-    type: OscillatorType
-  ) {
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    oscillator.type = type;
-    oscillator.frequency.setValueAtTime(frequency, start);
-
-    gain.gain.setValueAtTime(0.0001, start);
-    gain.gain.exponentialRampToValueAtTime(volume, start + 0.025);
-    gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
-
-    oscillator.connect(gain);
-    gain.connect(destination);
-    oscillator.start(start);
-    oscillator.stop(start + duration + 0.03);
-  }
-
-  private scheduleNoise(
-    context: AudioContext,
-    destination: AudioNode,
-    start: number,
-    duration: number,
-    volume: number,
-    filterFrequency: number,
-    filterType: BiquadFilterType
-  ) {
-    const sampleCount = Math.max(1, Math.floor(context.sampleRate * duration));
-    const buffer = context.createBuffer(1, sampleCount, context.sampleRate);
-    const data = buffer.getChannelData(0);
-
-    for (let index = 0; index < sampleCount; index += 1) {
-      const fadeOut = 1 - index / sampleCount;
-      data[index] = (Math.random() * 2 - 1) * fadeOut;
-    }
-
-    const source = context.createBufferSource();
-    const filter = context.createBiquadFilter();
-    const gain = context.createGain();
-
-    source.buffer = buffer;
-    filter.type = filterType;
-    filter.frequency.setValueAtTime(filterFrequency, start);
-    filter.Q.setValueAtTime(filterType === "bandpass" ? 1.4 : 0.7, start);
-    gain.gain.setValueAtTime(0.0001, start);
-    gain.gain.exponentialRampToValueAtTime(volume, start + 0.025);
-    gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
-
-    source.connect(filter);
-    filter.connect(gain);
-    gain.connect(destination);
-    source.start(start);
-    source.stop(start + duration + 0.03);
-  }
-
   private tryToggleGuides(pointer: Phaser.Input.Pointer) {
     const bounds = this.guideToggle.getBounds();
     if (!bounds.contains(pointer.x, pointer.y)) return false;
 
     this.toggleGuides();
     return true;
+  }
+
+  private tryToggleAudio(pointer: Phaser.Input.Pointer) {
+    const bounds = this.audioToggle.getBounds();
+    if (!bounds.contains(pointer.x, pointer.y)) return false;
+
+    this.toggleAudio();
+    return true;
+  }
+
+  private toggleAudio() {
+    this.audioEnabled = !this.audioEnabled;
+    this.audioToggle.setText(`audio: ${this.audioEnabled ? "on" : "off"}`);
+
+    if (!this.audioEnabled) {
+      this.stopAllAudioNow();
+      this.flashToast("Sonido desactivado");
+      return;
+    }
+
+    const beat = this.currentBeat();
+    this.ambience.ensureContext();
+    this.ambience.setLocationAmbience(beat.location, true);
+    this.ambience.setHeartbeat(beat.cinematic?.heartbeat ?? 0);
+    this.ambience.setIntimate(Boolean(beat.cinematic?.intimate), true);
+    void this.updateBackgroundMusicForLocation(beat.location);
+    this.flashToast("Sonido activado");
+  }
+
+  private stopAllAudioNow() {
+    if (this.backgroundMusic) {
+      this.backgroundMusic.pause();
+      this.backgroundMusic.currentTime = 0;
+      this.backgroundMusic = undefined;
+    }
+    this.activeMusicUrl = undefined;
+    this.triedBackgroundMusic = false;
+    this.ambience?.destroy();
+    this.ambience = new AmbienceEngine();
   }
 
   private toggleGuides() {
