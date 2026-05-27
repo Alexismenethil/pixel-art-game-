@@ -36,7 +36,9 @@ const locationTone = {
 const frames = [
   { suffix: "1", offsetX: 0, offsetY: 0, brightness: 1, warmth: 0, phase: 0 },
   { suffix: "2", offsetX: 1.8, offsetY: -0.9, brightness: 1.028, warmth: 0.018, phase: 1.9 },
-  { suffix: "3", offsetX: -1.4, offsetY: 0.8, brightness: 0.992, warmth: -0.008, phase: 3.8 }
+  { suffix: "3", offsetX: -1.4, offsetY: 0.8, brightness: 0.992, warmth: -0.008, phase: 3.8 },
+  { suffix: "4", offsetX: 2.5, offsetY: 0.4, brightness: 1.015, warmth: 0.01, phase: 5.2 },
+  { suffix: "5", offsetX: -2.1, offsetY: -0.5, brightness: 1.006, warmth: 0.004, phase: 6.7 }
 ];
 
 function clamp(value, min = 0, max = 255) {

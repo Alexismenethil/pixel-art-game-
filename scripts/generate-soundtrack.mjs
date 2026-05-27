@@ -2,6 +2,20 @@ import fs from 'fs';
 import path from 'path';
 
 const SAMPLE_RATE = 44100;
+let randomSeed = 0x5f3759df;
+
+function random() {
+  randomSeed = (randomSeed * 1664525 + 1013904223) >>> 0;
+  return randomSeed / 0x100000000;
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function softLimit(sample, drive = 1.18) {
+  return Math.tanh(sample * drive) / Math.tanh(drive);
+}
 
 // Chord progressions (frequencies in Hz)
 const CHORDS_THEMES = {
@@ -61,7 +75,7 @@ function synthesizeGuitarPluck(freq, duration, volume, pan, outL, outR, triggerS
   let lp = 0;
   // Excitation: 80% sine wave, 20% filtered noise for nylon-string acoustic realism
   for (let i = 0; i < period; i++) {
-    const rawNoise = Math.random() * 2 - 1;
+    const rawNoise = random() * 2 - 1;
     const sineExc = Math.sin(2 * Math.PI * i / period);
     lp = lp + 0.35 * ((rawNoise * 0.2 + sineExc * 0.8) - lp);
     ringBuffer[i] = lp;
@@ -125,7 +139,7 @@ function synthesizePianoTone(freq, duration, volume, pan, outL, outR, triggerSam
     }
     
     if (progress < 0.018) {
-      const strikeNoise = (Math.random() * 2 - 1) * Math.exp(-progress * 220) * 0.08;
+      const strikeNoise = (random() * 2 - 1) * Math.exp(-progress * 220) * 0.08;
       sample += strikeNoise;
     }
     
@@ -161,7 +175,7 @@ function synthesizeMusicBoxTone(freq, duration, volume, pan, outL, outR, trigger
     }
     
     if (progress < 0.004) {
-      sample += (Math.random() * 2 - 1) * 0.12;
+      sample += (random() * 2 - 1) * 0.12;
     }
     
     const mixSample = sample * volume * 0.16;
@@ -196,27 +210,146 @@ function synthesizeChurchBell(volume, pan, outL, outR, triggerSample, totalSampl
   }
 }
 
+function synthesizeShimmerCluster(freq, duration, volume, pan, outL, outR, triggerSample, totalSamples) {
+  const durationSamples = Math.floor(duration * SAMPLE_RATE);
+  const partials = [
+    { ratio: 2.0, amp: 0.9 },
+    { ratio: 2.5, amp: 0.48 },
+    { ratio: 3.0, amp: 0.32 },
+    { ratio: 4.0, amp: 0.18 },
+    { ratio: 5.0, amp: 0.1 }
+  ];
+  const phases = partials.map(() => random() * Math.PI * 2);
+
+  for (let i = 0; i < durationSamples; i++) {
+    const idx = triggerSample + i;
+    if (idx >= totalSamples) break;
+
+    const progress = i / SAMPLE_RATE;
+    const attack = clamp(progress / 0.45, 0, 1);
+    const env = attack * attack * Math.exp(-progress * 0.38);
+    const tremolo = 0.75 + Math.sin(2 * Math.PI * progress * 0.19) * 0.12;
+    let sample = 0;
+
+    for (let p = 0; p < partials.length; p++) {
+      const partial = partials[p];
+      const partialFreq = freq * partial.ratio;
+      if (partialFreq > 14500) continue;
+      sample += Math.sin(2 * Math.PI * partialFreq * progress + phases[p]) * partial.amp;
+    }
+
+    const shimmer = sample * env * tremolo * volume * 0.32;
+    outL[idx] += shimmer * (1 - pan);
+    outR[idx] += shimmer * pan;
+  }
+}
+
+function synthesizeRomanticBloom(chord, duration, volume, outL, outR, triggerSample, totalSamples) {
+  const durationSamples = Math.floor(duration * SAMPLE_RATE);
+  const notes = [
+    chord[0] * 0.5,
+    chord[2],
+    chord[3],
+    chord[4] ?? chord[3] * 1.25,
+    (chord[5] ?? chord[4]) * 1.5
+  ];
+
+  for (let noteIndex = 0; noteIndex < notes.length; noteIndex++) {
+    const freq = notes[noteIndex];
+    const phaseOffset = random() * Math.PI * 2;
+    const pan = clamp(0.5 + Math.sin(noteIndex * 1.9) * 0.36, 0.08, 0.92);
+    const noteVolume = volume * (noteIndex === 0 ? 0.8 : 1.0) / Math.sqrt(notes.length);
+
+    for (let i = 0; i < durationSamples; i++) {
+      const idx = triggerSample + i;
+      if (idx >= totalSamples) break;
+
+      const progress = i / SAMPLE_RATE;
+      const attack = clamp(progress / 2.4, 0, 1);
+      const releaseStart = duration * 0.62;
+      const release = progress > releaseStart ? clamp(1 - (progress - releaseStart) / (duration - releaseStart), 0, 1) : 1;
+      const env = attack * attack * (3 - 2 * attack) * release * release;
+      const vibrato = 1 + Math.sin(2 * Math.PI * progress * (0.11 + noteIndex * 0.015)) * 0.0025;
+      const fundamental = Math.sin(2 * Math.PI * freq * vibrato * progress + phaseOffset);
+      const octave = Math.sin(2 * Math.PI * freq * 2.0 * progress + phaseOffset * 0.7) * 0.18;
+      const breath = Math.sin(2 * Math.PI * freq * 0.5 * progress + phaseOffset * 1.3) * 0.12;
+      const sample = (fundamental + octave + breath) * env * noteVolume;
+
+      outL[idx] += sample * (1 - pan);
+      outR[idx] += sample * pan;
+    }
+  }
+}
+
+function applyStereoMaster(outL, outR, loopSamples, options = {}) {
+  const {
+    stereoWidth = 1.08,
+    warmth = 0.11,
+    drive = 1.16,
+    airTame = 0.68
+  } = options;
+
+  let lowL = 0;
+  let lowR = 0;
+  let smoothL = 0;
+  let smoothR = 0;
+  let dcL = 0;
+  let dcR = 0;
+
+  for (let i = 0; i < loopSamples; i++) {
+    let left = outL[i];
+    let right = outR[i];
+
+    dcL = dcL * 0.995 + left * 0.005;
+    dcR = dcR * 0.995 + right * 0.005;
+    left -= dcL;
+    right -= dcR;
+
+    lowL += warmth * (left - lowL);
+    lowR += warmth * (right - lowR);
+    left += lowL * 0.08;
+    right += lowR * 0.08;
+
+    smoothL += 0.38 * (left - smoothL);
+    smoothR += 0.38 * (right - smoothR);
+    left = smoothL + (left - smoothL) * airTame;
+    right = smoothR + (right - smoothR) * airTame;
+
+    const mid = (left + right) * 0.5;
+    const side = (left - right) * 0.5 * stereoWidth;
+    outL[i] = softLimit(mid + side, drive);
+    outR[i] = softLimit(mid - side, drive);
+  }
+}
+
 const outputDir = path.join(process.cwd(), 'public', 'assets', 'audio');
 if (!fs.existsSync(outputDir)) {
   fs.mkdirSync(outputDir, { recursive: true });
 }
 
-function writeWavFile(outputPath, outL, outR, loopSamples) {
+function writeWavFile(outputPath, outL, outR, loopSamples, masterOptions = {}) {
+  const { targetPeak = 0.88 } = masterOptions;
+  applyStereoMaster(outL, outR, loopSamples, masterOptions);
+
   let maxVal = 0.001;
+  let rms = 0;
   for (let i = 0; i < loopSamples; i++) {
     const absL = Math.abs(outL[i]);
     const absR = Math.abs(outR[i]);
     if (absL > maxVal) maxVal = absL;
     if (absR > maxVal) maxVal = absR;
+    rms += (outL[i] * outL[i] + outR[i] * outR[i]) * 0.5;
   }
   
-  const normFactor = 0.80 / maxVal;
+  const normFactor = targetPeak / maxVal;
   const pcmBuffer = Buffer.alloc(loopSamples * 2 * 2);
   let offset = 0;
 
   for (let i = 0; i < loopSamples; i++) {
-    let sampleL = Math.max(-1.0, Math.min(1.0, outL[i] * normFactor));
-    let sampleR = Math.max(-1.0, Math.min(1.0, outR[i] * normFactor));
+    let sampleL = softLimit(outL[i] * normFactor, 1.08) * 0.96;
+    let sampleR = softLimit(outR[i] * normFactor, 1.08) * 0.96;
+    sampleL = clamp(sampleL + (random() - random()) / 65536, -1.0, 1.0);
+    sampleR = clamp(sampleR + (random() - random()) / 65536, -1.0, 1.0);
     
     const intL = Math.floor(sampleL === 1.0 ? 32767 : sampleL * 32768);
     const intR = Math.floor(sampleR === 1.0 ? 32767 : sampleR * 32768);
@@ -247,6 +380,9 @@ function writeWavFile(outputPath, outL, outR, loopSamples) {
   writeStream.write(wavHeader);
   writeStream.write(pcmBuffer);
   writeStream.end();
+
+  const rmsDb = 20 * Math.log10(Math.sqrt(rms / loopSamples) * normFactor + 0.000001);
+  console.log(`  master: peak ${maxVal.toFixed(4)} -> ${(maxVal * normFactor).toFixed(3)}, rms ${rmsDb.toFixed(1)} dBFS`);
 }
 
 function synthesizeSoundtrack(filename, options) {
@@ -265,7 +401,18 @@ function synthesizeSoundtrack(filename, options) {
     whistlingWind = false,    
     detunedCello = false,
     churchBellTime = null,    
-    wireWindEffect = false     
+    wireWindEffect = false,
+    shimmerGain = 0.0,
+    bloomGain = 0.0,
+    padGainScale = 1.0,
+    melodyGainScale = 1.0,
+    melodyDensity = 1.0,
+    delayWet = 0.30,
+    delayFeedback = 0.38,
+    stereoWidth = 1.08,
+    masterDrive = 1.16,
+    airTame = 0.68,
+    targetPeak = 0.88
   } = options;
 
   const loopSamples = Math.floor(duration * SAMPLE_RATE);
@@ -286,7 +433,7 @@ function synthesizeSoundtrack(filename, options) {
       const freq = chord[noteIndex];
       const isBass = noteIndex < 2;
       
-      const volume = isBass ? (detunedCello ? 0.05 : 0.038) : 0.022;
+      const volume = (isBass ? (detunedCello ? 0.05 : 0.038) : 0.022) * padGainScale;
       
       const attack = detunedCello ? 2.5 : 2.0;
       const release = detunedCello ? 3.0 : 2.8;
@@ -295,10 +442,11 @@ function synthesizeSoundtrack(filename, options) {
       const attackSamples = Math.floor(attack * SAMPLE_RATE);
       const releaseSamples = Math.floor(release * SAMPLE_RATE);
       
-      const voiceCount = detunedCello ? 2 : 1;
+      const detuneRatios = detunedCello ? [0.994, 1.0, 1.006] : [0.9985, 1.0015];
+      const voiceCount = detuneRatios.length;
       
       for (let v = 0; v < voiceCount; v++) {
-        const detuneRatio = detunedCello ? (v === 0 ? 0.996 : 1.004) : 1.0;
+        const detuneRatio = detuneRatios[v];
         const noteFreq = freq * detuneRatio;
         
         let phase = 0;
@@ -327,9 +475,9 @@ function synthesizeSoundtrack(filename, options) {
           lpY1 = lpY1 + lpCutoff * (sample - lpY1);
           lpY2 = lpY2 + lpCutoff * (lpY1 - lpY2);
           
-          const mixSample = lpY2 * env * volume * (1.0 / voiceCount);
+          const mixSample = lpY2 * env * volume * (1.0 / Math.sqrt(voiceCount));
           
-          const pan = 0.5 + 0.3 * Math.sin(noteIndex * 1.7 + v);
+          const pan = clamp(0.5 + 0.28 * Math.sin(noteIndex * 1.7 + v * 1.1) + (v - (voiceCount - 1) / 2) * 0.08, 0.08, 0.92);
           outL[idx] += mixSample * (1 - pan);
           outR[idx] += mixSample * pan;
         }
@@ -355,12 +503,14 @@ function synthesizeSoundtrack(filename, options) {
       
       if (barProgression > 0.75) playChance = 0;
       
-      if (playChance > 0 && Math.random() < playChance) {
+      playChance *= melodyDensity;
+
+      if (playChance > 0 && random() < playChance) {
         const chord = chords[bar % chords.length];
         
-        let noteFreq = PENTATONIC[Math.floor(Math.random() * PENTATONIC.length)];
+        let noteFreq = PENTATONIC[Math.floor(random() * PENTATONIC.length)];
         while (noteFreq === lastFreq) {
-          noteFreq = PENTATONIC[Math.floor(Math.random() * PENTATONIC.length)];
+          noteFreq = PENTATONIC[Math.floor(random() * PENTATONIC.length)];
         }
         lastFreq = noteFreq;
         
@@ -368,13 +518,34 @@ function synthesizeSoundtrack(filename, options) {
         const pan = 0.35 + 0.3 * Math.sin(step * 2.3);
         
         if (instrument === 'guitar') {
-          synthesizeGuitarPluck(noteFreq, 2.5, 0.038, pan, outL, outR, triggerSample, totalSamples);
+          synthesizeGuitarPluck(noteFreq, 2.5, 0.038 * melodyGainScale, pan, outL, outR, triggerSample, totalSamples);
         } else if (instrument === 'piano') {
-          synthesizePianoTone(noteFreq, 2.4, 0.035, pan, outL, outR, triggerSample, totalSamples);
+          synthesizePianoTone(noteFreq, 2.4, 0.035 * melodyGainScale, pan, outL, outR, triggerSample, totalSamples);
         } else if (instrument === 'musicbox') {
-          synthesizeMusicBoxTone(noteFreq * 2.0, 3.2, 0.024, pan, outL, outR, triggerSample, totalSamples);
+          synthesizeMusicBoxTone(noteFreq * 2.0, 3.2, 0.024 * melodyGainScale, pan, outL, outR, triggerSample, totalSamples);
         }
       }
+    }
+  }
+
+  if (shimmerGain > 0) {
+    for (let tSec = 4; tSec < renderDuration; tSec += 16) {
+      if (random() < 0.18) continue;
+      const bar = Math.floor(tSec / 8);
+      const chord = chords[bar % chords.length];
+      const shimmerRoot = chord[2] ?? chord[0];
+      const triggerSample = Math.floor((tSec + random() * 1.1) * SAMPLE_RATE);
+      const pan = 0.3 + 0.4 * random();
+      synthesizeShimmerCluster(shimmerRoot, 7.5, shimmerGain, pan, outL, outR, triggerSample, totalSamples);
+    }
+  }
+
+  if (bloomGain > 0) {
+    for (let tSec = 0; tSec < renderDuration; tSec += 16) {
+      const bar = Math.floor(tSec / 8);
+      const chord = chords[bar % chords.length];
+      const triggerSample = Math.floor((tSec + 0.35) * SAMPLE_RATE);
+      synthesizeRomanticBloom(chord, 13.5, bloomGain, outL, outR, triggerSample, totalSamples);
     }
   }
 
@@ -400,11 +571,11 @@ function synthesizeSoundtrack(filename, options) {
     const dryL = outL[i];
     const dryR = outR[i];
     
-    outL[i] = dryL + dL * 0.30;
-    outR[i] = dryR + dR * 0.30;
+    outL[i] = dryL + dL * delayWet;
+    outR[i] = dryR + dR * delayWet;
     
-    delayBufL[delayIdx] = dryL + dR * 0.38;
-    delayBufR[delayIdx] = dryR + dL * 0.38;
+    delayBufL[delayIdx] = dryL + dR * delayFeedback;
+    delayBufR[delayIdx] = dryR + dL * delayFeedback;
     
     delayIdx = (delayIdx + 1) % delayLength;
   }
@@ -418,7 +589,7 @@ function synthesizeSoundtrack(filename, options) {
 
   for (let i = 0; i < totalSamples; i++) {
     const t = i / SAMPLE_RATE;
-    const whiteNoise = Math.random() * 2 - 1;
+    const whiteNoise = random() * 2 - 1;
     
     // Whistling wind (Road)
     if (wireWindEffect) {
@@ -566,7 +737,7 @@ function synthesizeSoundtrack(filename, options) {
 
   // 7. Write WAV File
   const outputPath = path.join(outputDir, filename);
-  writeWavFile(outputPath, outL, outR, loopSamples);
+  writeWavFile(outputPath, outL, outR, loopSamples, { stereoWidth, drive: masterDrive, airTame, targetPeak });
 }
 
 // Remaster and render separate tracks for each location!
@@ -578,7 +749,13 @@ synthesizeSoundtrack('chapter-1-taxi.wav', {
   chords: CHORDS_THEMES.taxi,
   instrument: 'piano',
   windGain: 0.0,
-  taxiCabin: true
+  taxiCabin: true,
+  shimmerGain: 0.0035,
+  bloomGain: 0.0045,
+  stereoWidth: 1.04,
+  masterDrive: 1.2,
+  airTame: 0.64,
+  targetPeak: 0.86
 });
 
 // 2. HOSPITAL (celesta music box, soft ambient pager beep, roomy)
@@ -587,7 +764,13 @@ synthesizeSoundtrack('chapter-1-hospital.wav', {
   chords: CHORDS_THEMES.hospital,
   instrument: 'musicbox',
   windGain: 0.0,
-  hospitalBeep: true
+  hospitalBeep: true,
+  shimmerGain: 0.0048,
+  bloomGain: 0.0052,
+  stereoWidth: 1.1,
+  masterDrive: 1.12,
+  airTame: 0.68,
+  targetPeak: 0.86
 });
 
 // 3. ROAD (Karplus-Strong guitar plucks, quiet breeze, birds, distant soft bell)
@@ -596,31 +779,61 @@ synthesizeSoundtrack('chapter-1-road.wav', {
   duration: 48,
   chords: CHORDS_THEMES.road,
   instrument: 'guitar',
-  windGain: 0.003,      // Very soft, relaxing wind gusts
-  birdsGain: 0.0018,    // Gentle forest birds
-  gravelSteps: false,   // REMOVED - was scratchy
-  wireWindEffect: false, // REMOVED - was piercing
-  churchBellTime: [24.0] // One single soft bell toll for golden mood
+  windGain: 0.0018,
+  birdsGain: 0.0,
+  gravelSteps: false,
+  wireWindEffect: false,
+  shimmerGain: 0.0016,
+  bloomGain: 0.0,
+  padGainScale: 0.38,
+  melodyGainScale: 0.68,
+  melodyDensity: 0.5,
+  delayWet: 0.18,
+  delayFeedback: 0.22,
+  stereoWidth: 1.06,
+  masterDrive: 1.08,
+  airTame: 0.62,
+  targetPeak: 0.78
 });
 
-// 4. BOSQUETE (Karplus-Strong guitar, wind in leaves, call-response birds, distant bell)
+// 4. BOSQUETE (leaf bed, tiny bells, sparse birds)
 synthesizeSoundtrack('chapter-1-bosquete.wav', {
   duration: 48,
   chords: CHORDS_THEMES.bosquete,
-  instrument: 'guitar',
-  windGain: 0.004,      // Very gentle wind in leaves
-  birdsGain: 0.0022,    // Call & Response birds
-  churchBellTime: [8.0]  // Single soft village bell
+  instrument: 'musicbox',
+  windGain: 0.0032,
+  birdsGain: 0.0012,
+  churchBellTime: null,
+  shimmerGain: 0.0046,
+  bloomGain: 0.0018,
+  padGainScale: 0.32,
+  melodyGainScale: 0.42,
+  melodyDensity: 0.36,
+  delayWet: 0.24,
+  delayFeedback: 0.24,
+  stereoWidth: 1.14,
+  masterDrive: 1.08,
+  airTame: 0.68,
+  targetPeak: 0.8
 });
 
-// 5. VALLEY (swelling string pads, valley wind gusts, distant bell)
+// 5. VALLEY (wide open air, low warm horizon, rare distant bell)
 synthesizeSoundtrack('chapter-1-valley.wav', {
   duration: 48,
   chords: CHORDS_THEMES.valley,
   instrument: 'synth',
-  windGain: 0.006,
-  birdsGain: 0.0012,
-  churchBellTime: [16.0]
+  windGain: 0.0045,
+  birdsGain: 0.0,
+  churchBellTime: [28.0],
+  shimmerGain: 0.0018,
+  bloomGain: 0.0,
+  padGainScale: 0.62,
+  delayWet: 0.2,
+  delayFeedback: 0.18,
+  stereoWidth: 1.18,
+  masterDrive: 1.1,
+  airTame: 0.58,
+  targetPeak: 0.8
 });
 
 // 6. RAVINE (cello detuned pads, canyon rock whistling, water drops)
@@ -631,7 +844,13 @@ synthesizeSoundtrack('chapter-1-ravine.wav', {
   windGain: 0.0,
   waterDrop: true,
   whistlingWind: true,
-  detunedCello: true
+  detunedCello: true,
+  shimmerGain: 0.003,
+  bloomGain: 0.004,
+  stereoWidth: 1.06,
+  masterDrive: 1.22,
+  airTame: 0.6,
+  targetPeak: 0.85
 });
 
 // 7. RIVER (gorgeous grand piano, rushing water flow, call-response birds)
@@ -639,8 +858,19 @@ synthesizeSoundtrack('chapter-1-river.wav', {
   duration: 48,
   chords: CHORDS_THEMES.river,
   instrument: 'piano',
-  riverGain: 0.004,     // Quieter river murmur
-  birdsGain: 0.0020
+  riverGain: 0.007,
+  birdsGain: 0.0,
+  shimmerGain: 0.0012,
+  bloomGain: 0.0,
+  padGainScale: 0.26,
+  melodyGainScale: 0.28,
+  melodyDensity: 0.32,
+  delayWet: 0.14,
+  delayFeedback: 0.16,
+  stereoWidth: 1.1,
+  masterDrive: 1.06,
+  airTame: 0.64,
+  targetPeak: 0.78
 });
 
 // 8. GENERAL (Full soundtrack as backup / main theme)
@@ -649,7 +879,13 @@ synthesizeSoundtrack('chapter-1.wav', {
   chords: CHORDS_THEMES.river,
   instrument: 'piano',
   windGain: 0.004,
-  birdsGain: 0.0015
+  birdsGain: 0.0015,
+  shimmerGain: 0.008,
+  bloomGain: 0.0085,
+  stereoWidth: 1.14,
+  masterDrive: 1.13,
+  airTame: 0.73,
+  targetPeak: 0.88
 });
 
 console.log(`\n¡Todas las pistas remasterizadas sintetizadas con exito!`);

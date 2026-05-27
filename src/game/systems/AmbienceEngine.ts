@@ -24,6 +24,27 @@ type AmbienceLayer = {
   master: GainNode;
 };
 
+type LocationMusicColor = {
+  highpass: number;
+  lowShelfGain: number;
+  presenceFreq: number;
+  presenceGain: number;
+  airGain: number;
+  pan: number;
+  reverbSend: number;
+};
+
+type ExternalMusicRouting = {
+  source: MediaElementAudioSourceNode;
+  input: GainNode;
+  highpass: BiquadFilterNode;
+  body: BiquadFilterNode;
+  presence: BiquadFilterNode;
+  air: BiquadFilterNode;
+  panner?: StereoPannerNode;
+  reverbSend: GainNode;
+};
+
 const ambienceByLocation: Record<LocationId, AmbienceId> = {
   taxi: "taxi",
   hospital: "hospital",
@@ -36,19 +57,31 @@ const ambienceByLocation: Record<LocationId, AmbienceId> = {
   room: "room"
 };
 
-// Sound Engineer Remaster: Substantially lower gains (cut by 6-10dB)
-// to ensure environments sit perfectly as subtle, pleasing backdrops
+// Relaxed immersive mix: ambient beds stay present enough to place the reader
+// inside the scene, while music remains behind the dialogue.
 const targetLayerVolume: Record<AmbienceId, number> = {
-  taxi: 0.05,        // Very quiet cabin hum
-  hospital: 0.025,   // Soft ambient whisper
-  road: 0.038,       // Very faint breeze
-  bosquete: 0.035,   // Extremely subtle wind in trees
-  valley: 0.038,      // Broad but quiet valley breeze
-  ravine: 0.03,      // Very soft echoes
-  river: 0.055,      // Gentle water flow (not overpowering)
-  night: 0.03,       // Deep quiet night
-  room: 0.02,        // Barely audible room hum
-  intimate: 0.025    // Delicate background warmth
+  taxi: 0.062,
+  hospital: 0.048,
+  road: 0.07,
+  bosquete: 0.078,
+  valley: 0.074,
+  ravine: 0.054,
+  river: 0.11,
+  night: 0.058,
+  room: 0.04,
+  intimate: 0.045
+};
+
+const musicColorByLocation: Record<LocationId, LocationMusicColor> = {
+  taxi: { highpass: 48, lowShelfGain: 2.6, presenceFreq: 720, presenceGain: -1.2, airGain: -2.4, pan: -0.04, reverbSend: 0.055 },
+  hospital: { highpass: 62, lowShelfGain: 0.4, presenceFreq: 1180, presenceGain: -2.2, airGain: -1.8, pan: 0.02, reverbSend: 0.12 },
+  road: { highpass: 42, lowShelfGain: 1.4, presenceFreq: 1500, presenceGain: -0.8, airGain: -0.7, pan: -0.02, reverbSend: 0.09 },
+  bosquete: { highpass: 44, lowShelfGain: 1.7, presenceFreq: 1420, presenceGain: -0.9, airGain: -0.9, pan: 0.04, reverbSend: 0.11 },
+  valley: { highpass: 38, lowShelfGain: 2.0, presenceFreq: 980, presenceGain: -1.0, airGain: -1.2, pan: 0, reverbSend: 0.13 },
+  ravine: { highpass: 55, lowShelfGain: 1.1, presenceFreq: 680, presenceGain: -1.8, airGain: -2.8, pan: -0.03, reverbSend: 0.16 },
+  river: { highpass: 40, lowShelfGain: 1.5, presenceFreq: 1320, presenceGain: -0.7, airGain: -0.8, pan: 0.03, reverbSend: 0.10 },
+  night: { highpass: 50, lowShelfGain: 1.8, presenceFreq: 760, presenceGain: -1.4, airGain: -2.6, pan: -0.02, reverbSend: 0.15 },
+  room: { highpass: 56, lowShelfGain: 0.8, presenceFreq: 900, presenceGain: -1.8, airGain: -2.2, pan: 0.01, reverbSend: 0.14 }
 };
 
 // Chord progressions (frequencies in Hz)
@@ -112,6 +145,9 @@ const chordThemes: Record<LocationId, number[][]> = {
 export class AmbienceEngine {
   private context?: AudioContext;
   private bus?: GainNode;
+  private masterHighpass?: BiquadFilterNode;
+  private masterAir?: BiquadFilterNode;
+  private masterCompressor?: DynamicsCompressorNode;
   private currentLayer?: AmbienceLayer;
   private intimateLayer?: AmbienceLayer;
   private heartbeatIntensity = 0;
@@ -128,6 +164,7 @@ export class AmbienceEngine {
   // Music & SFX properties
   private musicBus?: GainNode;
   private musicEqLow?: BiquadFilterNode;
+  private musicEqPresence?: BiquadFilterNode;
   private musicEqHigh?: BiquadFilterNode;
   private chordInterval?: number;
   private melodyInterval?: number;
@@ -136,6 +173,9 @@ export class AmbienceEngine {
   private currentChordIndex = 0;
   private activeChordOscillators: { osc: OscillatorNode; gain: GainNode; filter?: BiquadFilterNode; lfo?: OscillatorNode }[] = [];
   private currentLoc: LocationId = "taxi";
+  private externalMusicRoutings = new WeakMap<HTMLMediaElement, ExternalMusicRouting>();
+  private routedExternalMusic = new Set<HTMLMediaElement>();
+  private activeExternalMusic?: HTMLMediaElement;
 
   ensureContext(): AudioContext | undefined {
     if (this.context) return this.context;
@@ -149,11 +189,33 @@ export class AmbienceEngine {
       void ctx.resume();
     }
     const bus = ctx.createGain();
+    const masterHighpass = ctx.createBiquadFilter();
+    const masterAir = ctx.createBiquadFilter();
+    const masterCompressor = ctx.createDynamicsCompressor();
+
     bus.gain.setValueAtTime(0.0001, ctx.currentTime);
-    bus.connect(ctx.destination);
+    masterHighpass.type = "highpass";
+    masterHighpass.frequency.setValueAtTime(24, ctx.currentTime);
+    masterHighpass.Q.setValueAtTime(0.65, ctx.currentTime);
+    masterAir.type = "highshelf";
+    masterAir.frequency.setValueAtTime(9500, ctx.currentTime);
+    masterAir.gain.setValueAtTime(-0.8, ctx.currentTime);
+    masterCompressor.threshold.setValueAtTime(-18, ctx.currentTime);
+    masterCompressor.knee.setValueAtTime(24, ctx.currentTime);
+    masterCompressor.ratio.setValueAtTime(2.2, ctx.currentTime);
+    masterCompressor.attack.setValueAtTime(0.018, ctx.currentTime);
+    masterCompressor.release.setValueAtTime(0.28, ctx.currentTime);
+
+    bus.connect(masterHighpass);
+    masterHighpass.connect(masterAir);
+    masterAir.connect(masterCompressor);
+    masterCompressor.connect(ctx.destination);
     
     this.context = ctx;
     this.bus = bus;
+    this.masterHighpass = masterHighpass;
+    this.masterAir = masterAir;
+    this.masterCompressor = masterCompressor;
 
     // Create Synthetic Reverb Node for warm, retro-cinematic room depth
     try {
@@ -272,6 +334,7 @@ export class AmbienceEngine {
   destroy() {
     this.stopHeartbeat();
     this.stopMusic(true);
+    [...this.routedExternalMusic].forEach((element) => this.releaseExternalMusic(element));
     
     // Immediate cleanup of layers to prevent intervals running on closed context
     const cleanLayerImmediate = (layer: AmbienceLayer) => {
@@ -295,6 +358,144 @@ export class AmbienceEngine {
       void this.context.close().catch(() => undefined);
       this.context = undefined;
     }
+  }
+
+  connectExternalMusic(element: HTMLMediaElement, location: LocationId) {
+    const ctx = this.ensureContext();
+    if (!ctx || !this.bus) return false;
+
+    let routing = this.externalMusicRoutings.get(element);
+    if (!routing) {
+      try {
+        const source = ctx.createMediaElementSource(element);
+        const input = ctx.createGain();
+        const highpass = ctx.createBiquadFilter();
+        const body = ctx.createBiquadFilter();
+        const presence = ctx.createBiquadFilter();
+        const air = ctx.createBiquadFilter();
+        const reverbSend = ctx.createGain();
+        const panner =
+          typeof ctx.createStereoPanner === "function" ? ctx.createStereoPanner() : undefined;
+
+        input.gain.setValueAtTime(1, ctx.currentTime);
+        highpass.type = "highpass";
+        highpass.Q.setValueAtTime(0.7, ctx.currentTime);
+        body.type = "lowshelf";
+        body.frequency.setValueAtTime(180, ctx.currentTime);
+        presence.type = "peaking";
+        presence.Q.setValueAtTime(0.9, ctx.currentTime);
+        air.type = "highshelf";
+        air.frequency.setValueAtTime(7600, ctx.currentTime);
+        reverbSend.gain.setValueAtTime(0.08, ctx.currentTime);
+
+        source.connect(input);
+        input.connect(highpass);
+        highpass.connect(body);
+        body.connect(presence);
+        presence.connect(air);
+
+        const output: AudioNode = panner ?? air;
+        if (panner) air.connect(panner);
+        output.connect(this.bus);
+
+        if (this.reverbNode) {
+          output.connect(reverbSend);
+          reverbSend.connect(this.reverbNode);
+        }
+
+        routing = { source, input, highpass, body, presence, air, panner, reverbSend };
+        this.externalMusicRoutings.set(element, routing);
+        this.routedExternalMusic.add(element);
+      } catch (error) {
+        console.warn("Could not route background music through Web Audio:", error);
+        return false;
+      }
+    }
+
+    this.applyExternalMusicColor(routing, location);
+    this.activeExternalMusic = element;
+    return true;
+  }
+
+  releaseExternalMusic(element: HTMLMediaElement) {
+    const routing = this.externalMusicRoutings.get(element);
+    if (!routing) return;
+
+    try {
+      routing.source.disconnect();
+      routing.input.disconnect();
+      routing.highpass.disconnect();
+      routing.body.disconnect();
+      routing.presence.disconnect();
+      routing.air.disconnect();
+      routing.panner?.disconnect();
+      routing.reverbSend.disconnect();
+    } catch {}
+
+    if (this.activeExternalMusic === element) {
+      this.activeExternalMusic = undefined;
+    }
+    this.externalMusicRoutings.delete(element);
+    this.routedExternalMusic.delete(element);
+  }
+
+  private applyExternalMusicColor(routing: ExternalMusicRouting, location: LocationId) {
+    const ctx = this.context;
+    if (!ctx) return;
+    const color = musicColorByLocation[location] ?? musicColorByLocation.taxi;
+    const now = ctx.currentTime;
+    const glide = 0.45;
+
+    routing.highpass.frequency.setTargetAtTime(color.highpass, now, glide);
+    routing.body.gain.setTargetAtTime(color.lowShelfGain, now, glide);
+    routing.presence.frequency.setTargetAtTime(color.presenceFreq, now, glide);
+    routing.presence.gain.setTargetAtTime(color.presenceGain, now, glide);
+    routing.air.gain.setTargetAtTime(color.airGain, now, glide);
+    routing.reverbSend.gain.setTargetAtTime(color.reverbSend, now, glide);
+    routing.panner?.pan.setTargetAtTime(color.pan, now, glide);
+  }
+
+  private ensureMusicBus(ctx: AudioContext) {
+    if (this.musicBus) return this.musicBus;
+
+    this.musicBus = ctx.createGain();
+    this.musicEqLow = ctx.createBiquadFilter();
+    this.musicEqPresence = ctx.createBiquadFilter();
+    this.musicEqHigh = ctx.createBiquadFilter();
+
+    this.musicEqLow.type = "lowshelf";
+    this.musicEqLow.frequency.setValueAtTime(190, ctx.currentTime);
+    this.musicEqLow.gain.setValueAtTime(1.5, ctx.currentTime);
+
+    this.musicEqPresence.type = "peaking";
+    this.musicEqPresence.frequency.setValueAtTime(1100, ctx.currentTime);
+    this.musicEqPresence.Q.setValueAtTime(0.95, ctx.currentTime);
+    this.musicEqPresence.gain.setValueAtTime(-1.0, ctx.currentTime);
+
+    this.musicEqHigh.type = "highshelf";
+    this.musicEqHigh.frequency.setValueAtTime(7800, ctx.currentTime);
+    this.musicEqHigh.gain.setValueAtTime(-2.2, ctx.currentTime);
+
+    this.musicBus.connect(this.musicEqLow);
+    this.musicEqLow.connect(this.musicEqPresence);
+    this.musicEqPresence.connect(this.musicEqHigh);
+    this.musicEqHigh.connect(this.bus ?? ctx.destination);
+    this.applyProceduralMusicColor(this.currentLoc);
+
+    return this.musicBus;
+  }
+
+  private applyProceduralMusicColor(location: LocationId) {
+    const ctx = this.context;
+    if (!ctx || !this.musicEqLow || !this.musicEqPresence || !this.musicEqHigh) return;
+    const color = musicColorByLocation[location] ?? musicColorByLocation.taxi;
+    const now = ctx.currentTime;
+    const glide = 0.8;
+
+    this.musicEqLow.gain.setTargetAtTime(color.lowShelfGain, now, glide);
+    this.musicEqPresence.frequency.setTargetAtTime(color.presenceFreq, now, glide);
+    this.musicEqPresence.gain.setTargetAtTime(color.presenceGain, now, glide);
+    this.musicEqHigh.gain.setTargetAtTime(color.airGain, now, glide);
   }
 
   private crossfadeTo(id: AmbienceId, immediate: boolean) {
@@ -350,51 +551,54 @@ export class AmbienceEngine {
 
     switch (id) {
       case "taxi":
-        addVoice(this.createNoiseVoice(ctx, master, { type: "bandpass", frequency: 150, q: 1.0, gain: 0.28 }));
-        addVoice(this.createOscVoice(ctx, master, { type: "triangle", frequency: 46, gain: 0.16, lfoFreq: 1.2, lfoGain: 3 }));
-        addVoice(this.createTickerVoice(ctx, master, { intervalMs: 1100, frequency: 900, gain: 0.02, durationMs: 20 }));
+        addVoice(this.createNoiseVoice(ctx, master, { type: "bandpass", frequency: 145, q: 0.8, gain: 0.24, lfoFreq: 0.035, lfoRange: 42, pan: -0.12, panDrift: 0.018, reverbSend: 0.08 }));
+        addVoice(this.createNoiseVoice(ctx, master, { type: "lowpass", frequency: 380, q: 0.2, gain: 0.055, lfoFreq: 0.025, lfoRange: 80, pan: 0.22, panDrift: 0.012, reverbSend: 0.12 }));
+        addVoice(this.createOscVoice(ctx, master, { type: "triangle", frequency: 46, gain: 0.12, lfoFreq: 0.55, lfoGain: 1.7 }));
+        addVoice(this.createTickerVoice(ctx, master, { intervalMs: 4400, frequency: 760, gain: 0.006, durationMs: 26, wave: "sine" }));
         break;
       case "hospital":
-        addVoice(this.createOscVoice(ctx, master, { type: "sine", frequency: 85, gain: 0.08, lfoFreq: 0.1, lfoGain: 1.5 }));
-        addVoice(this.createNoiseVoice(ctx, master, { type: "lowpass", frequency: 600, q: 0.25, gain: 0.06 }));
-        addVoice(this.createTickerVoice(ctx, master, { intervalMs: 8200, frequency: 880, gain: 0.006, durationMs: 300, wave: "sine" }));
+        addVoice(this.createOscVoice(ctx, master, { type: "sine", frequency: 85, gain: 0.055, lfoFreq: 0.075, lfoGain: 0.9 }));
+        addVoice(this.createNoiseVoice(ctx, master, { type: "lowpass", frequency: 520, q: 0.18, gain: 0.095, lfoFreq: 0.018, lfoRange: 70, pan: 0.06, panDrift: 0.014, reverbSend: 0.18 }));
+        addVoice(this.createGentleDingVoice(ctx, master, { intervalMs: 11200, frequency: 784, gain: 0.008, pan: 0.08 }));
         break;
       case "road":
-        // Gusts: Low frequency wind gusts (max cutoff 450Hz, very soft)
-        addVoice(this.createNoiseVoice(ctx, master, { type: "highpass", frequency: 450, q: 0.25, gain: 0.10, lfoFreq: 0.05, lfoRange: 120 }));
-        addVoice(this.createBirdVoice(ctx, master, { intervalMs: 18000 })); // Very sparse birds
+        addVoice(this.createNoiseVoice(ctx, master, { type: "bandpass", frequency: 310, q: 0.22, gain: 0.13, lfoFreq: 0.022, lfoRange: 80, pan: -0.12, panDrift: 0.01, reverbSend: 0.18 }));
+        addVoice(this.createNoiseVoice(ctx, master, { type: "lowpass", frequency: 170, q: 0.12, gain: 0.065, lfoFreq: 0.015, lfoRange: 34, pan: 0.2, panDrift: 0.007, reverbSend: 0.12 }));
         break;
       case "bosquete":
-        // Soft rustle in leaves: narrow band pass (no harsh highs)
-        addVoice(this.createNoiseVoice(ctx, master, { type: "bandpass", frequency: 850, q: 0.7, gain: 0.08, lfoFreq: 0.08, lfoRange: 200 }));
-        addVoice(this.createBirdVoice(ctx, master, { intervalMs: 15000 }));
+        addVoice(this.createNoiseVoice(ctx, master, { type: "bandpass", frequency: 920, q: 0.62, gain: 0.095, lfoFreq: 0.065, lfoRange: 280, pan: -0.32, panDrift: 0.03, reverbSend: 0.24 }));
+        addVoice(this.createNoiseVoice(ctx, master, { type: "bandpass", frequency: 540, q: 0.38, gain: 0.07, lfoFreq: 0.04, lfoRange: 130, pan: 0.28, panDrift: 0.022, reverbSend: 0.2 }));
+        addVoice(this.createBirdVoice(ctx, master, { intervalMs: 26000 }));
+        addVoice(this.createGentleDingVoice(ctx, master, { intervalMs: 18000, frequency: 1046.5, gain: 0.0045, pan: -0.18, probability: 0.45 }));
         break;
       case "valley":
-        addVoice(this.createNoiseVoice(ctx, master, { type: "highpass", frequency: 500, q: 0.25, gain: 0.12, lfoFreq: 0.04, lfoRange: 150 }));
-        addVoice(this.createBirdVoice(ctx, master, { intervalMs: 22000 }));
+        addVoice(this.createNoiseVoice(ctx, master, { type: "bandpass", frequency: 390, q: 0.18, gain: 0.105, lfoFreq: 0.014, lfoRange: 170, pan: -0.24, panDrift: 0.008, reverbSend: 0.34 }));
+        addVoice(this.createNoiseVoice(ctx, master, { type: "lowpass", frequency: 210, q: 0.12, gain: 0.075, lfoFreq: 0.011, lfoRange: 56, pan: 0.26, panDrift: 0.006, reverbSend: 0.26 }));
+        addVoice(this.createGentleDingVoice(ctx, master, { intervalMs: 26000, frequency: 659.25, gain: 0.005, pan: 0.16, probability: 0.55 }));
         break;
       case "ravine":
-        addVoice(this.createNoiseVoice(ctx, master, { type: "highpass", frequency: 550, q: 0.25, gain: 0.08, lfoFreq: 0.06, lfoRange: 100 }));
-        addVoice(this.createTickerVoice(ctx, master, { intervalMs: 3800, frequency: 780, gain: 0.008, durationMs: 120, wave: "sine" }));
+        addVoice(this.createNoiseVoice(ctx, master, { type: "bandpass", frequency: 430, q: 0.28, gain: 0.09, lfoFreq: 0.03, lfoRange: 130, pan: -0.08, panDrift: 0.018, reverbSend: 0.32 }));
+        addVoice(this.createNoiseVoice(ctx, master, { type: "lowpass", frequency: 260, q: 0.18, gain: 0.036, lfoFreq: 0.02, lfoRange: 50, pan: 0.18, panDrift: 0.01, reverbSend: 0.22 }));
+        addVoice(this.createTickerVoice(ctx, master, { intervalMs: 6800, frequency: 640, gain: 0.004, durationMs: 150, wave: "sine" }));
         break;
       case "river":
-        // Murmuring river: double-low-pass rumble (max 500Hz)
-        addVoice(this.createNoiseVoice(ctx, master, { type: "bandpass", frequency: 500, q: 0.4, gain: 0.18, lfoFreq: 0.16, lfoRange: 140 }));
-        addVoice(this.createNoiseVoice(ctx, master, { type: "lowpass", frequency: 320, q: 0.2, gain: 0.08 }));
-        addVoice(this.createBirdVoice(ctx, master, { intervalMs: 16000 }));
+        addVoice(this.createNoiseVoice(ctx, master, { type: "bandpass", frequency: 430, q: 0.34, gain: 0.25, lfoFreq: 0.1, lfoRange: 100, pan: -0.12, panDrift: 0.022, reverbSend: 0.14 }));
+        addVoice(this.createNoiseVoice(ctx, master, { type: "lowpass", frequency: 270, q: 0.16, gain: 0.14, lfoFreq: 0.065, lfoRange: 52, pan: 0.16, panDrift: 0.014, reverbSend: 0.12 }));
+        addVoice(this.createWaterRippleVoice(ctx, master, { intervalMs: 7200 }));
         break;
       case "night":
-        addVoice(this.createOscVoice(ctx, master, { type: "sine", frequency: 60, gain: 0.06, lfoFreq: 0.08, lfoGain: 1.0 }));
-        addVoice(this.createCricketVoice(ctx, master, { intervalMs: 2800 })); // Slower crickets
+        addVoice(this.createOscVoice(ctx, master, { type: "sine", frequency: 60, gain: 0.045, lfoFreq: 0.05, lfoGain: 0.6 }));
+        addVoice(this.createNoiseVoice(ctx, master, { type: "lowpass", frequency: 260, q: 0.18, gain: 0.034, lfoFreq: 0.018, lfoRange: 50, pan: -0.12, panDrift: 0.008, reverbSend: 0.2 }));
+        addVoice(this.createCricketVoice(ctx, master, { intervalMs: 4200 }));
         break;
       case "room":
-        addVoice(this.createOscVoice(ctx, master, { type: "sine", frequency: 90, gain: 0.08, lfoFreq: 0.09, lfoGain: 1.2 }));
-        addVoice(this.createNoiseVoice(ctx, master, { type: "lowpass", frequency: 400, q: 0.2, gain: 0.04 }));
+        addVoice(this.createOscVoice(ctx, master, { type: "sine", frequency: 90, gain: 0.045, lfoFreq: 0.06, lfoGain: 0.7 }));
+        addVoice(this.createNoiseVoice(ctx, master, { type: "lowpass", frequency: 340, q: 0.16, gain: 0.065, lfoFreq: 0.016, lfoRange: 45, pan: 0.04, panDrift: 0.01, reverbSend: 0.22 }));
         break;
       case "intimate":
-        addVoice(this.createOscVoice(ctx, master, { type: "sine", frequency: 220.00, gain: 0.02 }));
-        addVoice(this.createOscVoice(ctx, master, { type: "sine", frequency: 277.18, gain: 0.015 }));
-        addVoice(this.createOscVoice(ctx, master, { type: "sine", frequency: 329.63, gain: 0.015 }));
+        addVoice(this.createOscVoice(ctx, master, { type: "sine", frequency: 220.00, gain: 0.016 }));
+        addVoice(this.createOscVoice(ctx, master, { type: "sine", frequency: 277.18, gain: 0.013 }));
+        addVoice(this.createOscVoice(ctx, master, { type: "sine", frequency: 329.63, gain: 0.011 }));
         break;
     }
 
@@ -450,7 +654,17 @@ export class AmbienceEngine {
   private createNoiseVoice(
     ctx: AudioContext,
     destination: AudioNode,
-    options: { type: BiquadFilterType; frequency: number; q: number; gain: number; lfoFreq?: number; lfoRange?: number }
+    options: {
+      type: BiquadFilterType;
+      frequency: number;
+      q: number;
+      gain: number;
+      lfoFreq?: number;
+      lfoRange?: number;
+      pan?: number;
+      panDrift?: number;
+      reverbSend?: number;
+    }
   ): AmbienceVoice {
     const buffer = this.getNoiseBuffer(ctx);
     const source = ctx.createBufferSource();
@@ -465,7 +679,7 @@ export class AmbienceEngine {
     
     const filter2 = ctx.createBiquadFilter();
     filter2.type = "lowpass";
-    filter2.frequency.setValueAtTime(options.frequency * 1.3, ctx.currentTime);
+    filter2.frequency.setValueAtTime(Math.max(options.frequency * 1.45, options.frequency + 90), ctx.currentTime);
     filter2.Q.setValueAtTime(0.5, ctx.currentTime); // Softer slope rounding
     
     const gain = ctx.createGain();
@@ -497,12 +711,31 @@ export class AmbienceEngine {
     source.connect(filter1);
     filter1.connect(filter2);
     filter2.connect(gain);
-    gain.connect(destination);
+    const panner = typeof ctx.createStereoPanner === "function" ? ctx.createStereoPanner() : undefined;
+    let panLfo: OscillatorNode | undefined;
+    let panLfoGain: GainNode | undefined;
+    if (panner) {
+      panner.pan.setValueAtTime(options.pan ?? 0, ctx.currentTime);
+      if (options.panDrift) {
+        panLfo = ctx.createOscillator();
+        panLfo.type = "sine";
+        panLfo.frequency.setValueAtTime(options.panDrift, ctx.currentTime);
+        panLfoGain = ctx.createGain();
+        panLfoGain.gain.setValueAtTime(0.22, ctx.currentTime);
+        panLfo.connect(panLfoGain);
+        panLfoGain.connect(panner.pan);
+        panLfo.start();
+      }
+      gain.connect(panner);
+      panner.connect(destination);
+    } else {
+      gain.connect(destination);
+    }
 
     if (this.reverbNode) {
       const send = ctx.createGain();
-      send.gain.setValueAtTime(0.20, ctx.currentTime);
-      gain.connect(send);
+      send.gain.setValueAtTime(options.reverbSend ?? 0.20, ctx.currentTime);
+      (panner ?? gain).connect(send);
       send.connect(this.reverbNode);
     }
 
@@ -515,6 +748,7 @@ export class AmbienceEngine {
         try {
           ampLfo.stop();
           filterLfo?.stop();
+          panLfo?.stop();
         } catch {}
       }
     };
@@ -558,6 +792,67 @@ export class AmbienceEngine {
       osc.stop(now + options.durationMs / 1000 + 0.05);
     }, options.intervalMs);
     
+    return {
+      source: silentSource,
+      gain,
+      cleanup: () => window.clearInterval(interval)
+    };
+  }
+
+  private createGentleDingVoice(
+    ctx: AudioContext,
+    destination: AudioNode,
+    options: { intervalMs: number; frequency: number; gain: number; pan?: number; probability?: number }
+  ): AmbienceVoice {
+    const silentSource = ctx.createConstantSource();
+    silentSource.offset.setValueAtTime(0, ctx.currentTime);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    silentSource.connect(gain);
+    gain.connect(destination);
+    silentSource.start();
+
+    const interval = window.setInterval(() => {
+      if (Math.random() > (options.probability ?? 0.82)) return;
+      const now = ctx.currentTime;
+      const output = this.createEchoBus(ctx, destination, 0.72, 0.34, 0.18, 0.24);
+      [
+        { ratio: 1, delay: 0, volume: options.gain, duration: 1.8 },
+        { ratio: 1.25, delay: 0.08, volume: options.gain * 0.58, duration: 1.45 },
+        { ratio: 1.5, delay: 0.18, volume: options.gain * 0.32, duration: 1.2 }
+      ].forEach(({ ratio, delay, volume, duration }) => {
+        const osc = ctx.createOscillator();
+        const env = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+        const panner = typeof ctx.createStereoPanner === "function" ? ctx.createStereoPanner() : undefined;
+        const start = now + delay;
+
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(options.frequency * ratio * (0.997 + Math.random() * 0.006), start);
+        filter.type = "lowpass";
+        filter.frequency.setValueAtTime(2400, start);
+        filter.Q.setValueAtTime(0.45, start);
+        env.gain.setValueAtTime(0.0001, start);
+        env.gain.exponentialRampToValueAtTime(volume, start + 0.035);
+        env.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+
+        osc.connect(filter);
+        filter.connect(env);
+        if (panner) {
+          panner.pan.setValueAtTime(options.pan ?? 0, start);
+          env.connect(panner);
+          panner.connect(output);
+          if (this.reverbNode) panner.connect(this.reverbNode);
+        } else {
+          env.connect(output);
+          if (this.reverbNode) env.connect(this.reverbNode);
+        }
+
+        osc.start(start);
+        osc.stop(start + duration + 0.06);
+      });
+    }, options.intervalMs);
+
     return {
       source: silentSource,
       gain,
@@ -652,6 +947,60 @@ export class AmbienceEngine {
     };
   }
 
+  private createWaterRippleVoice(ctx: AudioContext, destination: AudioNode, options: { intervalMs: number }): AmbienceVoice {
+    const silentSource = ctx.createConstantSource();
+    silentSource.offset.setValueAtTime(0, ctx.currentTime);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    silentSource.connect(gain);
+    gain.connect(destination);
+    silentSource.start();
+
+    const interval = window.setInterval(() => {
+      if (Math.random() < 0.45) return;
+      const now = ctx.currentTime;
+      const baseTime = now + Math.random() * 0.9;
+      for (let i = 0; i < 2; i += 1) {
+        const t = baseTime + i * (0.22 + Math.random() * 0.1);
+        const osc = ctx.createOscillator();
+        const env = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+        const panner = typeof ctx.createStereoPanner === "function" ? ctx.createStereoPanner() : undefined;
+
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(360 + Math.random() * 100, t);
+        osc.frequency.exponentialRampToValueAtTime(190 + Math.random() * 60, t + 0.34);
+        filter.type = "lowpass";
+        filter.frequency.setValueAtTime(900, t);
+        filter.Q.setValueAtTime(0.4, t);
+        env.gain.setValueAtTime(0.0001, t);
+        env.gain.exponentialRampToValueAtTime(0.0048, t + 0.025);
+        env.gain.exponentialRampToValueAtTime(0.0001, t + 0.42);
+
+        osc.connect(filter);
+        filter.connect(env);
+        if (panner) {
+          panner.pan.setValueAtTime(-0.5 + Math.random(), t);
+          env.connect(panner);
+          panner.connect(destination);
+          if (this.reverbNode) panner.connect(this.reverbNode);
+        } else {
+          env.connect(destination);
+          if (this.reverbNode) env.connect(this.reverbNode);
+        }
+
+        osc.start(t);
+        osc.stop(t + 0.46);
+      }
+    }, options.intervalMs);
+
+    return {
+      source: silentSource,
+      gain,
+      cleanup: () => window.clearInterval(interval)
+    };
+  }
+
   private scheduleHeartbeat(ctx: AudioContext, time: number, intensity: number) {
     const dest = this.bus ?? ctx.destination;
     const playThump = (offset: number, frequency: number, gainValue: number) => {
@@ -714,30 +1063,14 @@ export class AmbienceEngine {
     const ctx = this.ensureContext();
     if (!ctx || !this.bus) return;
 
-    if (!this.musicBus) {
-      this.musicBus = ctx.createGain();
-      
-      // Master Tape-style Equalizer to make procedural music warm and non-fatiguing
-      this.musicEqLow = ctx.createBiquadFilter();
-      this.musicEqLow.type = "lowshelf";
-      this.musicEqLow.frequency.setValueAtTime(220, ctx.currentTime);
-      this.musicEqLow.gain.setValueAtTime(1.5, ctx.currentTime); // boost cozy low-mids
-      
-      this.musicEqHigh = ctx.createBiquadFilter();
-      this.musicEqHigh.type = "highshelf";
-      this.musicEqHigh.frequency.setValueAtTime(8000, ctx.currentTime);
-      this.musicEqHigh.gain.setValueAtTime(-3.5, ctx.currentTime); // damp digital highs
-      
-      this.musicBus.connect(this.musicEqLow);
-      this.musicEqLow.connect(this.musicEqHigh);
-      this.musicEqHigh.connect(this.bus);
-    }
+    const musicBus = this.ensureMusicBus(ctx);
+    this.applyProceduralMusicColor(this.currentLoc);
 
     this.musicActive = true;
     const now = ctx.currentTime;
-    this.musicBus.gain.cancelScheduledValues(now);
-    this.musicBus.gain.setValueAtTime(0.0001, now);
-    this.musicBus.gain.exponentialRampToValueAtTime(this.targetMusicVolume, now + (immediate ? 0.05 : 2.5));
+    musicBus.gain.cancelScheduledValues(now);
+    musicBus.gain.setValueAtTime(0.0001, now);
+    musicBus.gain.exponentialRampToValueAtTime(this.targetMusicVolume, now + (immediate ? 0.05 : 2.5));
 
     this.currentChordIndex = 0;
     this.playCurrentChord();
@@ -753,6 +1086,7 @@ export class AmbienceEngine {
   }
 
   adaptMusicToLocation(location: LocationId) {
+    this.applyProceduralMusicColor(location);
     this.currentChordIndex = 0;
     this.playCurrentChord();
   }
@@ -1213,6 +1547,80 @@ export class AmbienceEngine {
     oscSweep.stop(now + sweepDuration + 0.05);
 
     this.scheduleNoise(ctx, output, now, sweepDuration, 0.008, 1800, "highpass");
+  }
+
+  playKissMomentSound() {
+    const ctx = this.ensureContext();
+    if (!ctx || !this.bus) return;
+
+    const output = this.createEchoBus(ctx, this.bus, 0.92, 0.42, 0.22, 0.34);
+    const now = ctx.currentTime;
+    const bloom = ctx.createGain();
+    const filter = ctx.createBiquadFilter();
+
+    bloom.gain.setValueAtTime(0.0001, now);
+    bloom.gain.exponentialRampToValueAtTime(0.095, now + 0.8);
+    bloom.gain.exponentialRampToValueAtTime(0.0001, now + 4.4);
+
+    filter.type = "lowpass";
+    filter.frequency.setValueAtTime(520, now);
+    filter.frequency.exponentialRampToValueAtTime(3600, now + 1.7);
+    filter.frequency.exponentialRampToValueAtTime(1400, now + 4.2);
+    filter.Q.setValueAtTime(0.55, now);
+
+    bloom.connect(filter);
+    filter.connect(output);
+
+    if (this.reverbNode) {
+      const send = ctx.createGain();
+      send.gain.setValueAtTime(0.16, now);
+      filter.connect(send);
+      send.connect(this.reverbNode);
+    }
+
+    [
+      { frequency: 261.63, pan: 0.48, type: "triangle" as OscillatorType },
+      { frequency: 329.63, pan: 0.28, type: "sine" as OscillatorType },
+      { frequency: 392.0, pan: 0.68, type: "sine" as OscillatorType },
+      { frequency: 523.25, pan: 0.36, type: "sine" as OscillatorType },
+      { frequency: 659.25, pan: 0.74, type: "sine" as OscillatorType }
+    ].forEach(({ frequency, pan, type }, index) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const panner = typeof ctx.createStereoPanner === "function" ? ctx.createStereoPanner() : undefined;
+      const start = now + index * 0.045;
+
+      osc.type = type;
+      osc.frequency.setValueAtTime(frequency * 0.995, start);
+      osc.frequency.exponentialRampToValueAtTime(frequency * 1.005, start + 1.8);
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(1, start + 0.62);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 4.3);
+
+      osc.connect(gain);
+      if (panner) {
+        panner.pan.setValueAtTime((pan - 0.5) * 1.2, start);
+        gain.connect(panner);
+        panner.connect(bloom);
+      } else {
+        gain.connect(bloom);
+      }
+
+      osc.start(start);
+      osc.stop(start + 4.45);
+    });
+
+    [
+      { frequency: 783.99, delay: 0.16, volume: 0.022 },
+      { frequency: 1046.5, delay: 0.36, volume: 0.02 },
+      { frequency: 1318.51, delay: 0.62, volume: 0.017 },
+      { frequency: 1567.98, delay: 0.96, volume: 0.013 },
+      { frequency: 2093.0, delay: 1.32, volume: 0.009 }
+    ].forEach(({ frequency, delay, volume }) => {
+      this.scheduleTone(ctx, output, frequency, now + delay, 2.2, volume, "sine");
+    });
+
+    this.scheduleNoise(ctx, output, now + 0.15, 2.6, 0.006, 1700, "bandpass");
   }
 
   private createEchoBus(

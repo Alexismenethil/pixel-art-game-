@@ -56,7 +56,7 @@ export class BootScene extends Phaser.Scene {
       "room"
     ] as const;
     const layers = ["sky", "back", "mid", "front", "fx"] as const;
-    const beautyFrames = ["1", "2", "3"] as const;
+    const beautyFrames = ["1", "2", "3", "4", "5"] as const;
 
     for (const location of locations) {
       for (const layer of layers) {
@@ -79,6 +79,7 @@ export class BootScene extends Phaser.Scene {
       ["hospital-entrance-day", "/assets/chapter-1/hospital/entrance-day.png"],
       ["hospital-entrance-close-day", "/assets/chapter-1/hospital/entrance-close-day.png"],
       ["road-golden-path", "/assets/chapter-1/road/sky.png"],
+      ["road-asphalt-path", "/assets/generated/backgrounds/road/beauty-1.png"],
       ["bosquete-clearing", "/assets/chapter-1/bosquete/clearing.png"],
       ["valley-cima-close", "/assets/chapter-1/valley/cima-close.png"],
       ["ravine-path-down", "/assets/chapter-1/ravine/path-down.png"],

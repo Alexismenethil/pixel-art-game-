@@ -87,6 +87,18 @@ const colorGrades: Record<LocationId, { color: number; alpha: number }> = {
   room: { color: 0xd8c0e0, alpha: 0.15 }
 };
 
+const musicVolumeByLocation: Record<LocationId, number> = {
+  taxi: 0.2,
+  hospital: 0.17,
+  road: 0.22,
+  bosquete: 0.23,
+  valley: 0.22,
+  ravine: 0.18,
+  river: 0.24,
+  night: 0.17,
+  room: 0.16
+};
+
 export class StoryScene extends Phaser.Scene {
   private chapter!: Chapter;
   private beatIndex = 0;
@@ -155,7 +167,7 @@ export class StoryScene extends Phaser.Scene {
   private triedBackgroundMusic = false;
   private awaitingChoice = false;
   private guidesVisible = true;
-  private audioEnabled = false;
+  private audioEnabled = true;
   private isTransitioning = false;
 
   constructor() {
@@ -191,7 +203,7 @@ export class StoryScene extends Phaser.Scene {
     this.backgroundMusic = undefined;
     this.triedBackgroundMusic = false;
     this.ambience?.destroy();
-    this.audioEnabled = false;
+    this.audioEnabled = true;
     this.smsNotification?.destroy();
     this.smsNotification = undefined;
     this.pendingSmsNotificationSound = false;
@@ -385,7 +397,7 @@ export class StoryScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
 
     this.audioToggle = this.add
-      .text(808, 70, "audio: off", {
+      .text(808, 70, `audio: ${this.audioEnabled ? "on" : "off"}`, {
         fontFamily: "Courier New",
         fontSize: "16px",
         fontStyle: "bold",
@@ -678,6 +690,15 @@ export class StoryScene extends Phaser.Scene {
     return this.chapter.beats[this.beatIndex];
   }
 
+  private isKissHeartbeatBeat(beat: StoryBeat) {
+    return beat.id === "first-kiss";
+  }
+
+  private heartbeatForBeat(beat: StoryBeat) {
+    if (!this.isKissHeartbeatBeat(beat)) return 0;
+    return Math.max(0.9, beat.cinematic?.heartbeat ?? 0.92);
+  }
+
   private applyBeat(beat: StoryBeat, immediate = false) {
     const previousLocation = (this as { _prevLocation?: LocationId })._prevLocation;
     this.autoAdvanceTimer?.remove(false);
@@ -713,7 +734,7 @@ export class StoryScene extends Phaser.Scene {
     this.updateSmsNotification(beat, immediate);
     this.applyCinematicMood(beat, immediate);
 
-    const heartbeat = beat.cinematic?.heartbeat ?? 0;
+    const heartbeat = this.heartbeatForBeat(beat);
     this.heartbeatIntensity = heartbeat;
     if (!immediate && heartbeat > 0) {
       this.heartbeatPulse = Math.max(this.heartbeatPulse, 0.65);
@@ -721,6 +742,9 @@ export class StoryScene extends Phaser.Scene {
     if (this.audioEnabled) {
       this.ambience.setHeartbeat(heartbeat);
       this.ambience.setIntimate(Boolean(beat.cinematic?.intimate), immediate);
+      if (!immediate && this.isKissHeartbeatBeat(beat)) {
+        this.ambience.playKissMomentSound();
+      }
     }
 
     if (previousLocation !== beat.location) {
@@ -944,13 +968,15 @@ export class StoryScene extends Phaser.Scene {
       this.cameras.main.ignore(credits);
 
       const sequence = [dedicatoria, heart, title, subtitle, quote, memorySummary, stats, continueHint];
+      const revealStepMs = 320;
+      const revealDurationMs = 720;
       sequence.forEach((item, index) => {
         this.tweens.add({
           targets: item,
           alpha: item === continueHint ? 0.7 : 1,
           y: (item as Phaser.GameObjects.Text).y - 6,
-          delay: index * 320,
-          duration: 720,
+          delay: index * revealStepMs,
+          duration: revealDurationMs,
           ease: "Sine.easeOut"
         });
       });
@@ -958,14 +984,17 @@ export class StoryScene extends Phaser.Scene {
       this.tweens.add({
         targets: continueHint,
         alpha: 0.35,
-        delay: sequence.length * 320 + 900,
+        delay: sequence.length * revealStepMs + 900,
         duration: 900,
         yoyo: true,
         repeat: -1,
         ease: "Sine.easeInOut"
       });
 
-      this.input.once("pointerdown", () => {
+      let continued = false;
+      const continueAfterCredits = () => {
+        if (continued) return;
+        continued = true;
         this.tweens.add({
           targets: [overlay, credits],
           alpha: 0,
@@ -973,15 +1002,13 @@ export class StoryScene extends Phaser.Scene {
           ease: "Sine.easeIn"
         });
         this.time.delayedCall(620, () => onContinue());
-      });
-      this.input.keyboard?.once("keydown-SPACE", () => {
-        this.tweens.add({
-          targets: [overlay, credits],
-          alpha: 0,
-          duration: 600,
-          ease: "Sine.easeIn"
-        });
-        this.time.delayedCall(620, () => onContinue());
+      };
+
+      const continueReadyDelay = (sequence.length - 1) * revealStepMs + revealDurationMs + 180;
+      this.time.delayedCall(continueReadyDelay, () => {
+        this.input.once("pointerdown", continueAfterCredits);
+        this.input.keyboard?.once("keydown-SPACE", continueAfterCredits);
+        this.input.keyboard?.once("keydown-ENTER", continueAfterCredits);
       });
     });
   }
@@ -1654,8 +1681,9 @@ export class StoryScene extends Phaser.Scene {
       return;
     }
 
-    if (this.activeMusicUrl === url) {
-      // Already playing the correct track
+    if (this.activeMusicUrl === url && this.backgroundMusic) {
+      this.ambience.connectExternalMusic(this.backgroundMusic, location);
+      this.fadeBackgroundMusicTo(this.backgroundMusic, musicVolumeByLocation[location] ?? 0.18, 650);
       return;
     }
 
@@ -1666,6 +1694,7 @@ export class StoryScene extends Phaser.Scene {
     const newMusic = new Audio(url);
     newMusic.loop = true;
     newMusic.volume = 0;
+    this.ambience.connectExternalMusic(newMusic, location);
 
     this.activeMusicUrl = url;
     this.backgroundMusic = newMusic;
@@ -1674,8 +1703,8 @@ export class StoryScene extends Phaser.Scene {
       await newMusic.play();
       this.tweens.addCounter({
         from: 0,
-        to: 0.16,
-        duration: 1500, // Smooth fade-in
+        to: musicVolumeByLocation[location] ?? 0.18,
+        duration: 1900,
         ease: "Sine.easeOut",
         onUpdate: (tween) => {
           if (this.backgroundMusic === newMusic) {
@@ -1688,6 +1717,7 @@ export class StoryScene extends Phaser.Scene {
       if (this.backgroundMusic === newMusic) {
         this.backgroundMusic = undefined;
         this.activeMusicUrl = undefined;
+        this.ambience.releaseExternalMusic(newMusic);
       }
     }
 
@@ -1704,34 +1734,28 @@ export class StoryScene extends Phaser.Scene {
         onComplete: () => {
           oldMusic.pause();
           oldMusic.currentTime = 0;
+          this.ambience.releaseExternalMusic(oldMusic);
         }
       });
     }
   }
 
-  private async findLocationMusicUrl(location: LocationId) {
-    // Dynamic music lookup priority:
-    // 1. location-specific WAV (synthesized high fidelity)
-    // 2. location-specific MP3
-    // 3. general chapter WAV
-    // 4. general chapter MP3
-    const candidates = [
-      `/assets/audio/${this.chapter.id}-${location}.wav`,
-      `/assets/audio/${this.chapter.id}-${location}.mp3`,
-      `/assets/audio/${this.chapter.id}.wav`,
-      `/assets/audio/${this.chapter.id}.mp3`
-    ];
-
-    for (const url of candidates) {
-      try {
-        const response = await fetch(url, { method: "HEAD" });
-        if (response.ok) return url;
-      } catch {
-        // Continue
+  private fadeBackgroundMusicTo(music: HTMLAudioElement, volume: number, duration: number) {
+    this.tweens.addCounter({
+      from: music.volume,
+      to: volume,
+      duration,
+      ease: "Sine.easeInOut",
+      onUpdate: (tween) => {
+        if (this.backgroundMusic === music) {
+          music.volume = tween.getValue() ?? volume;
+        }
       }
-    }
+    });
+  }
 
-    return undefined;
+  private async findLocationMusicUrl(location: LocationId) {
+    return "/assets/audio/swordsman.mp3";
   }
 
   private fadeOutBackgroundMusic() {
@@ -1750,6 +1774,7 @@ export class StoryScene extends Phaser.Scene {
         onComplete: () => {
           music.pause();
           music.currentTime = 0;
+          this.ambience.releaseExternalMusic(music);
         }
       });
     }
@@ -1964,14 +1989,18 @@ export class StoryScene extends Phaser.Scene {
     const beat = this.currentBeat();
     this.ambience.ensureContext();
     this.ambience.setLocationAmbience(beat.location, true);
-    this.ambience.setHeartbeat(beat.cinematic?.heartbeat ?? 0);
+    this.ambience.setHeartbeat(this.heartbeatForBeat(beat));
     this.ambience.setIntimate(Boolean(beat.cinematic?.intimate), true);
     void this.updateBackgroundMusicForLocation(beat.location);
+    if (this.isKissHeartbeatBeat(beat)) {
+      this.ambience.playKissMomentSound();
+    }
     this.flashToast("Sonido activado");
   }
 
   private stopAllAudioNow() {
     if (this.backgroundMusic) {
+      this.ambience?.releaseExternalMusic(this.backgroundMusic);
       this.backgroundMusic.pause();
       this.backgroundMusic.currentTime = 0;
       this.backgroundMusic = undefined;
@@ -2047,9 +2076,10 @@ export class StoryScene extends Phaser.Scene {
     const isWordStart = justTyped.trim().length > 0 && (prevChar === " " || this.typingIndex === 1);
     // One soft musical note per word (not per letter), randomly skipped, so the
     // text "sings" gently in each character's register instead of clicking.
-    if (this.audioEnabled && isWordStart && Math.random() < 0.55) {
-      this.ambience?.playTypingTone(this.currentSpeaker);
-    }
+    // (Disabled per user request to prevent sound effects when writing words)
+    // if (this.audioEnabled && isWordStart && Math.random() < 0.55) {
+    //   this.ambience?.playTypingTone(this.currentSpeaker);
+    // }
 
     if (this.typingIndex >= text.length) {
       this.finishDialogueText();

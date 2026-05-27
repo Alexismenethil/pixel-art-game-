@@ -150,7 +150,6 @@ export const chapters: Chapter[] = [
         cinematic: {
           vignette: 0.08,
           warmth: 0.04,
-          heartbeat: 0.35,
           locationCard: { title: "Taxi", subtitle: "Julio · tarde · ya muy tarde" }
         },
         pace: "fast"
@@ -169,7 +168,7 @@ export const chapters: Chapter[] = [
           { texture: "couple-taxi-back-seat", x: 660, y: 532, scale: 0.62, depth: 32, float: 0.28 }
         ],
         camera: { zoom: 1.3, x: 640, y: 352, duration: 720, driftX: 4, driftY: 2, driftSpeed: 1.2 },
-        cinematic: { vignette: 0.1, shake: 0.0015, shakeDuration: 180, heartbeat: 0.55 },
+        cinematic: { vignette: 0.1, shake: 0.0015, shakeDuration: 180 },
         pace: "urgent"
       },
       {
@@ -186,7 +185,7 @@ export const chapters: Chapter[] = [
           { texture: "couple-taxi-back-seat", x: 660, y: 532, scale: 0.64, depth: 32, float: 0.25 }
         ],
         camera: { zoom: 1.32, x: 640, y: 354, duration: 680, driftX: 3, driftY: 1, driftSpeed: 1.1 },
-        cinematic: { vignette: 0.08, heartbeat: 0.5 },
+        cinematic: { vignette: 0.08 },
         pace: "fast",
         choices: [
           {
@@ -260,7 +259,7 @@ export const chapters: Chapter[] = [
           { texture: "couple-taxi-back-seat", x: 660, y: 532, scale: 0.68, depth: 32, float: 0.22 }
         ],
         camera: { zoom: 1.38, x: 642, y: 356, duration: 760, driftX: 2, driftY: 1, driftSpeed: 0.9 },
-        cinematic: { vignette: 0.08, heartbeat: 0.4, bloom: 0.06, whisper: "no te pierdas..." },
+        cinematic: { vignette: 0.08, bloom: 0.06, whisper: "no te pierdas..." },
         pace: "slow"
       },
       {
@@ -302,7 +301,6 @@ export const chapters: Chapter[] = [
         camera: { zoom: 1.16, x: 438, y: 314, duration: 900, driftX: 4, driftY: 1, driftSpeed: 0.5 },
         cinematic: {
           warmth: 0.03,
-          heartbeat: 0.4,
           locationCard: { title: "Hospital", subtitle: "Aqui empieza todo" },
           whisper: "respira hondo, ya llegaste"
         },
@@ -322,7 +320,6 @@ export const chapters: Chapter[] = [
         camera: { zoom: 1.16, x: 492, y: 314, duration: 1000, driftX: 4, driftY: 1, driftSpeed: 0.45 },
         cinematic: {
           warmth: 0.05,
-          heartbeat: 0.5,
           bloom: 0.06,
           whisper: "ahi estaba ella"
         },
@@ -342,7 +339,6 @@ export const chapters: Chapter[] = [
         camera: { zoom: 1.18, x: 488, y: 316, duration: 1100, driftX: 3, driftY: 1, driftSpeed: 0.4 },
         cinematic: {
           warmth: 0.06,
-          heartbeat: 0.6,
           vignette: 0.05,
           bloom: 0.06
         },
@@ -368,7 +364,6 @@ export const chapters: Chapter[] = [
           warmth: 0.06,
           vignette: 0.12,
           flash: true,
-          heartbeat: 0.65,
           bloom: 0.12,
           godrays: 0.55,
           whisper: "el tiempo se detuvo un segundo",
@@ -391,7 +386,7 @@ export const chapters: Chapter[] = [
           { texture: "couple-hospital-meet-close", x: 480, y: 508, scale: 0.64, depth: 32, float: 0.28 }
         ],
         camera: { zoom: 1.2, x: 480, y: 338, duration: 900, driftX: 1.5, driftY: 1, driftSpeed: 0.45 },
-        cinematic: { letterbox: 22, warmth: 0.05, vignette: 0.1, heartbeat: 0.55 },
+        cinematic: { letterbox: 22, warmth: 0.05, vignette: 0.1 },
         pace: "slow"
       },
       {
@@ -426,7 +421,7 @@ export const chapters: Chapter[] = [
         },
         props: [{ texture: "scene-hospital-entrance-close-day", x: 480, y: 540, scale: 1, depth: 23 }],
         camera: { zoom: 1.28, x: 548, y: 324, duration: 540 },
-        cinematic: { warmth: 0.05, vignette: 0.04, heartbeat: 0.4 }
+        cinematic: { warmth: 0.05, vignette: 0.04 }
       },
       {
         id: "hospital-save",
@@ -553,7 +548,7 @@ export const chapters: Chapter[] = [
           kiara: { x: 462, y: 378, mood: "walk", facing: "right", pose: "walking-side", visible: false }
         },
         props: [
-          { texture: "scene-road-golden-path", x: 480, y: 540, scale: 1, depth: 23 },
+          { texture: "scene-road-asphalt-path", x: 480, y: 540, scale: 1, depth: 23, alpha: 0.86 },
           { texture: "couple-walking-side-01", x: 500, y: 520, scale: 0.48, depth: 32, float: 0.35 }
         ],
         camera: { zoom: 1.02, x: 512, y: 348, duration: 900, driftX: 14, driftY: 3, driftSpeed: 0.65 },
@@ -570,7 +565,7 @@ export const chapters: Chapter[] = [
           kiara: { x: 478, y: 378, mood: "walk", facing: "right", pose: "walking-side", visible: false }
         },
         props: [
-          { texture: "scene-road-golden-path", x: 480, y: 540, scale: 1, depth: 23 },
+          { texture: "scene-road-asphalt-path", x: 480, y: 540, scale: 1, depth: 23, alpha: 0.86 },
           { texture: "couple-walking-side-02", x: 508, y: 520, scale: 0.48, depth: 32, float: 0.35 }
         ],
         camera: { zoom: 1.02, x: 518, y: 348, duration: 900, driftX: 16, driftY: 3, driftSpeed: 0.58 }
@@ -586,7 +581,7 @@ export const chapters: Chapter[] = [
           kiara: { x: 486, y: 378, mood: "walk", facing: "right", pose: "walking-side", visible: false }
         },
         props: [
-          { texture: "scene-road-golden-path", x: 480, y: 540, scale: 1, depth: 23 },
+          { texture: "scene-road-asphalt-path", x: 480, y: 540, scale: 1, depth: 23, alpha: 0.84 },
           { texture: "couple-walking-side-03", x: 516, y: 520, scale: 0.48, depth: 32, float: 0.35 }
         ],
         camera: { zoom: 1.02, x: 524, y: 348, duration: 1100, driftX: 20, driftY: 4, driftSpeed: 0.42 },
@@ -601,7 +596,7 @@ export const chapters: Chapter[] = [
           alexis: { x: 382, y: 454, mood: "nervous", expression: "nervous-soft", facing: "right", scale: 0.5 },
           kiara: { x: 552, y: 452, mood: "talking", expression: "teasing-smile", facing: "left", scale: 0.5 }
         },
-        props: [{ texture: "scene-road-golden-path", x: 480, y: 540, scale: 1, depth: 23 }],
+        props: [{ texture: "scene-road-asphalt-path", x: 480, y: 540, scale: 1, depth: 23, alpha: 0.84 }],
         camera: { zoom: 1.12, x: 468, y: 322, duration: 720, driftX: 2, driftY: 1, driftSpeed: 0.5 }
       },
       {
@@ -613,7 +608,7 @@ export const chapters: Chapter[] = [
           alexis: { x: 382, y: 454, mood: "talking", expression: "awkward-smile", facing: "right", scale: 0.5 },
           kiara: { x: 552, y: 452, mood: "laughing", expression: "hand-near-mouth", facing: "left", scale: 0.5 }
         },
-        props: [{ texture: "scene-road-golden-path", x: 480, y: 540, scale: 1, depth: 23 }],
+        props: [{ texture: "scene-road-asphalt-path", x: 480, y: 540, scale: 1, depth: 23, alpha: 0.84 }],
         camera: { zoom: 1.12, x: 468, y: 322, duration: 720, driftX: 2, driftY: 1, driftSpeed: 0.52 },
         cinematic: { warmth: 0.03 }
       },
@@ -626,7 +621,7 @@ export const chapters: Chapter[] = [
           alexis: { x: 382, y: 454, mood: "happy", expression: "soft-love", facing: "right", scale: 0.5 },
           kiara: { x: 552, y: 452, mood: "happy", expression: "gentle-smile", facing: "left", scale: 0.5 }
         },
-        props: [{ texture: "scene-road-golden-path", x: 480, y: 540, scale: 1, depth: 23 }],
+        props: [{ texture: "scene-road-asphalt-path", x: 480, y: 540, scale: 1, depth: 23, alpha: 0.82 }],
         camera: { zoom: 1.1, x: 468, y: 322, duration: 900, driftX: 4, driftY: 2, driftSpeed: 0.5 },
         cinematic: { warmth: 0.04 }
       },
@@ -886,7 +881,7 @@ export const chapters: Chapter[] = [
         },
         props: [{ texture: "scene-valley-cima-close", x: 480, y: 540, scale: 1, depth: 23 }],
         camera: { zoom: 1.22, x: 486, y: 320, duration: 1000, driftX: 1, driftY: 1, driftSpeed: 0.32 },
-        cinematic: { letterbox: 26, warmth: 0.06, vignette: 0.08, heartbeat: 0.28, whisper: "por un segundo, el futuro se acerco" }
+        cinematic: { letterbox: 26, warmth: 0.06, vignette: 0.08, whisper: "por un segundo, el futuro se acerco" }
       },
       {
         id: "valley-someday",
@@ -906,7 +901,7 @@ export const chapters: Chapter[] = [
           y: 250
         },
         camera: { zoom: 1.22, x: 486, y: 320, duration: 1100, driftX: 1, driftY: 1, driftSpeed: 0.3 },
-        cinematic: { letterbox: 28, warmth: 0.08, vignette: 0.09, heartbeat: 0.34, whisper: "lo dijo bajito" }
+        cinematic: { letterbox: 28, warmth: 0.08, vignette: 0.09, whisper: "lo dijo bajito" }
       },
       {
         id: "valley-silence-after-dream",
@@ -1093,7 +1088,6 @@ export const chapters: Chapter[] = [
           letterbox: 24,
           warmth: 0.05,
           vignette: 0.07,
-          heartbeat: 0.3,
           intimate: true,
           whisper: "respira despacio"
         },
@@ -1214,7 +1208,6 @@ export const chapters: Chapter[] = [
           letterbox: 24,
           warmth: 0.06,
           vignette: 0.08,
-          heartbeat: 0.45,
           intimate: true,
           whisper: "no la apartes la mirada"
         },
@@ -1239,7 +1232,6 @@ export const chapters: Chapter[] = [
           letterbox: 26,
           warmth: 0.07,
           vignette: 0.09,
-          heartbeat: 0.55,
           intimate: true,
           bloom: 0.05
         },
@@ -1264,7 +1256,6 @@ export const chapters: Chapter[] = [
           letterbox: 28,
           warmth: 0.07,
           vignette: 0.1,
-          heartbeat: 0.6,
           intimate: true,
           bloom: 0.06,
           whisper: "no apartes la mirada"
@@ -1289,7 +1280,6 @@ export const chapters: Chapter[] = [
           letterbox: 30,
           warmth: 0.08,
           vignette: 0.11,
-          heartbeat: 0.7,
           intimate: true,
           bloom: 0.08,
           chromatic: true,
@@ -1317,7 +1307,6 @@ export const chapters: Chapter[] = [
           letterbox: 34,
           warmth: 0.09,
           vignette: 0.12,
-          heartbeat: 0.8,
           intimate: true,
           bloom: 0.1,
           chromatic: true,
@@ -1346,7 +1335,6 @@ export const chapters: Chapter[] = [
           letterbox: 36,
           warmth: 0.1,
           vignette: 0.13,
-          heartbeat: 0.88,
           intimate: true,
           bloom: 0.12,
           chromatic: true,
@@ -1375,7 +1363,6 @@ export const chapters: Chapter[] = [
           letterbox: 38,
           warmth: 0.11,
           vignette: 0.14,
-          heartbeat: 0.95,
           intimate: true,
           bloom: 0.14,
           chromatic: true,
@@ -1405,7 +1392,6 @@ export const chapters: Chapter[] = [
           letterbox: 40,
           warmth: 0.115,
           vignette: 0.14,
-          heartbeat: 0.95,
           intimate: true,
           bloom: 0.16,
           chromatic: true,
@@ -1436,7 +1422,7 @@ export const chapters: Chapter[] = [
           vignette: 0.12,
           shake: 0.0007,
           shakeDuration: 180,
-          heartbeat: 0.4,
+          heartbeat: 0.92,
           intimate: true,
           bloom: 0.22,
           chromatic: true,

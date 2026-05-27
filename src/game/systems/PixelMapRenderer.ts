@@ -26,6 +26,7 @@ const generatedLocations: GeneratedLocation[] = [
   "night",
   "room"
 ];
+const beautyFrameCount = 5;
 const layerNames: LayerName[] = ["sky", "back", "mid", "front", "fx"];
 const layerDepths: Record<LayerName, number> = {
   sky: 0,
@@ -161,7 +162,7 @@ export class PixelMapRenderer {
       const layers: LayerSprite[] = [];
       const beautyFrames: BeautySprite[] = [];
 
-      for (let index = 0; index < 3; index += 1) {
+      for (let index = 0; index < beautyFrameCount; index += 1) {
         const textureKey = `bg-${location}-beauty-${index + 1}`;
         if (!this.scene.textures.exists(textureKey)) continue;
 
