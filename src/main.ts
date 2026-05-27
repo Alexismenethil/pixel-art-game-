@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { BootScene } from "./scenes/BootScene";
 import { HomeScene } from "./scenes/HomeScene";
 import { StoryScene } from "./scenes/StoryScene";
+import { forceStopGameAudio, installDevServerAudioGuard } from "./game/systems/audioLifecycle";
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -19,3 +20,7 @@ const config: Phaser.Types.Core.GameConfig = {
 };
 
 new Phaser.Game(config);
+
+window.addEventListener("pagehide", forceStopGameAudio);
+window.addEventListener("beforeunload", forceStopGameAudio);
+installDevServerAudioGuard();

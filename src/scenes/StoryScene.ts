@@ -14,6 +14,7 @@ import { CharacterActor } from "../game/systems/CharacterActor";
 import { ParticleField } from "../game/systems/ParticleField";
 import { PixelMapRenderer } from "../game/systems/PixelMapRenderer";
 import { AmbienceEngine } from "../game/systems/AmbienceEngine";
+import { FORCE_STOP_AUDIO_EVENT } from "../game/systems/audioLifecycle";
 import {
   addMemory,
   addStoryStat,
@@ -163,12 +164,15 @@ export class StoryScene extends Phaser.Scene {
   private cameraSettling = false;
   private cameraSettleTimer?: Phaser.Time.TimerEvent;
   private backgroundMusic?: HTMLAudioElement;
+  private backgroundMusicElements = new Set<HTMLAudioElement>();
   private activeMusicUrl?: string;
   private triedBackgroundMusic = false;
+  private audioSessionId = 0;
   private awaitingChoice = false;
   private guidesVisible = true;
   private audioEnabled = true;
   private isTransitioning = false;
+  private readonly forceStopAudioHandler = () => this.forceDisableAudio();
 
   constructor() {
     super("StoryScene");
@@ -199,10 +203,8 @@ export class StoryScene extends Phaser.Scene {
     this.cameraTarget = { x: 480, y: 270 };
     this.cameraDrift = { x: 0, y: 0, speed: 0.55 };
     this.cameraSettling = false;
-    this.backgroundMusic?.pause();
-    this.backgroundMusic = undefined;
+    this.stopAllAudioNow();
     this.triedBackgroundMusic = false;
-    this.ambience?.destroy();
     this.audioEnabled = true;
     this.smsNotification?.destroy();
     this.smsNotification = undefined;
@@ -237,8 +239,9 @@ export class StoryScene extends Phaser.Scene {
     }
     this.ambience = new AmbienceEngine();
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      this.ambience?.destroy();
+      this.shutdownAudioLifecycle();
     });
+    window.addEventListener(FORCE_STOP_AUDIO_EVENT, this.forceStopAudioHandler);
 
     this.createDialogueUi();
     this.createTopControls();
@@ -1670,8 +1673,11 @@ export class StoryScene extends Phaser.Scene {
 
   private async updateBackgroundMusicForLocation(location: LocationId) {
     if (!this.audioEnabled) return;
+    const audioSessionId = this.audioSessionId;
 
     const url = await this.findLocationMusicUrl(location);
+    if (!this.audioEnabled || audioSessionId !== this.audioSessionId) return;
+
     if (!url) {
       // Fallback to generative procedural music
       if (this.backgroundMusic) {
@@ -1694,6 +1700,7 @@ export class StoryScene extends Phaser.Scene {
     const newMusic = new Audio(url);
     newMusic.loop = true;
     newMusic.volume = 0;
+    this.backgroundMusicElements.add(newMusic);
     this.ambience.connectExternalMusic(newMusic, location);
 
     this.activeMusicUrl = url;
@@ -1701,6 +1708,10 @@ export class StoryScene extends Phaser.Scene {
 
     try {
       await newMusic.play();
+      if (!this.audioEnabled || audioSessionId !== this.audioSessionId || this.backgroundMusic !== newMusic) {
+        this.stopBackgroundMusicElement(newMusic);
+        return;
+      }
       this.tweens.addCounter({
         from: 0,
         to: musicVolumeByLocation[location] ?? 0.18,
@@ -1717,7 +1728,7 @@ export class StoryScene extends Phaser.Scene {
       if (this.backgroundMusic === newMusic) {
         this.backgroundMusic = undefined;
         this.activeMusicUrl = undefined;
-        this.ambience.releaseExternalMusic(newMusic);
+        this.stopBackgroundMusicElement(newMusic);
       }
     }
 
@@ -1732,9 +1743,7 @@ export class StoryScene extends Phaser.Scene {
           oldMusic.volume = tween.getValue() ?? 0;
         },
         onComplete: () => {
-          oldMusic.pause();
-          oldMusic.currentTime = 0;
-          this.ambience.releaseExternalMusic(oldMusic);
+          this.stopBackgroundMusicElement(oldMusic);
         }
       });
     }
@@ -1772,9 +1781,7 @@ export class StoryScene extends Phaser.Scene {
           music.volume = tween.getValue() ?? 0;
         },
         onComplete: () => {
-          music.pause();
-          music.currentTime = 0;
-          this.ambience.releaseExternalMusic(music);
+          this.stopBackgroundMusicElement(music);
         }
       });
     }
@@ -1998,17 +2005,40 @@ export class StoryScene extends Phaser.Scene {
     this.flashToast("Sonido activado");
   }
 
-  private stopAllAudioNow() {
-    if (this.backgroundMusic) {
-      this.ambience?.releaseExternalMusic(this.backgroundMusic);
-      this.backgroundMusic.pause();
-      this.backgroundMusic.currentTime = 0;
-      this.backgroundMusic = undefined;
+  private stopAllAudioNow(recreateAmbience = true) {
+    this.audioSessionId += 1;
+    for (const music of [...this.backgroundMusicElements]) {
+      this.stopBackgroundMusicElement(music);
     }
+    this.backgroundMusic = undefined;
     this.activeMusicUrl = undefined;
     this.triedBackgroundMusic = false;
     this.ambience?.destroy();
-    this.ambience = new AmbienceEngine();
+    if (recreateAmbience) {
+      this.ambience = new AmbienceEngine();
+    }
+  }
+
+  private stopBackgroundMusicElement(music: HTMLAudioElement) {
+    this.ambience?.releaseExternalMusic(music);
+    music.pause();
+    try {
+      music.currentTime = 0;
+    } catch {}
+    music.removeAttribute("src");
+    music.load();
+    this.backgroundMusicElements.delete(music);
+  }
+
+  private shutdownAudioLifecycle() {
+    window.removeEventListener(FORCE_STOP_AUDIO_EVENT, this.forceStopAudioHandler);
+    this.stopAllAudioNow(false);
+  }
+
+  private forceDisableAudio() {
+    this.audioEnabled = false;
+    this.audioToggle?.setText("audio: off");
+    this.stopAllAudioNow(false);
   }
 
   private toggleGuides() {
