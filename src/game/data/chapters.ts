@@ -81,6 +81,8 @@ export type StoryBeat = {
     chromatic?: boolean;
     slowmo?: number;
     magicShift?: boolean;
+    godrays?: number;
+    petals?: boolean;
     locationCard?: { title: string; subtitle?: string };
     whisper?: string;
     holdMs?: number;
@@ -368,6 +370,7 @@ export const chapters: Chapter[] = [
           flash: true,
           heartbeat: 0.65,
           bloom: 0.12,
+          godrays: 0.55,
           whisper: "el tiempo se detuvo un segundo",
           slowmo: 0.35
         },
@@ -757,7 +760,8 @@ export const chapters: Chapter[] = [
           warmth: 0.04,
           vignette: 0.05,
           locationCard: { title: "Valle", subtitle: "vista desde la cima" },
-          bloom: 0.06
+          bloom: 0.06,
+          godrays: 0.5
         },
         pace: "slow"
       },
@@ -1038,7 +1042,8 @@ export const chapters: Chapter[] = [
           warmth: 0.04,
           vignette: 0.04,
           locationCard: { title: "Rio", subtitle: "donde se quedan los recuerdos" },
-          bloom: 0.05
+          bloom: 0.05,
+          godrays: 0.42
         },
         pace: "slow"
       },
@@ -1436,6 +1441,8 @@ export const chapters: Chapter[] = [
           bloom: 0.22,
           chromatic: true,
           slowmo: 0.55,
+          godrays: 0.3,
+          petals: true,
           holdMs: 1500,
           persistDialogue: true,
           lockInput: true

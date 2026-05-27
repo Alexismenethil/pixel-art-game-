@@ -999,6 +999,57 @@ export class AmbienceEngine {
     }
   }
 
+  // A soft, music-box-like note played once per spoken word as dialogue types
+  // in. Each speaker draws from a pentatonic register, so their voice "sings"
+  // in a recognizable range. Warm sine + lowpass + a touch of reverb; never a
+  // mechanical click.
+  private typingScales: Record<string, number[]> = {
+    Kiara: [659.25, 783.99, 880.0, 1046.5, 1174.66], // bright, higher
+    Alexis: [329.63, 392.0, 440.0, 523.25, 587.33], // warm, lower
+    Chofer: [261.63, 293.66, 329.63, 392.0], // low, sparse
+    Narrador: [392.0, 440.0, 523.25, 587.33, 659.25], // soft mid
+    Ambos: [523.25, 587.33, 659.25, 783.99, 880.0]
+  };
+
+  playTypingTone(speaker: string) {
+    const ctx = this.ensureContext();
+    if (!ctx || !this.bus) return;
+    const now = ctx.currentTime;
+
+    const scale = this.typingScales[speaker] ?? this.typingScales.Narrador;
+    const freq = scale[Math.floor(Math.random() * scale.length)] * (0.999 + Math.random() * 0.002);
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const filter = ctx.createBiquadFilter();
+
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(freq, now);
+
+    filter.type = "lowpass";
+    filter.frequency.setValueAtTime(1900, now);
+
+    // Gentle bell envelope: quick swell, soft tail.
+    const peak = speaker === "Narrador" ? 0.009 : 0.013;
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(peak, now + 0.014);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.26);
+
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.bus);
+
+    if (this.reverbNode) {
+      const send = ctx.createGain();
+      send.gain.setValueAtTime(peak * 0.5, now);
+      gain.connect(send);
+      send.connect(this.reverbNode);
+    }
+
+    osc.start(now);
+    osc.stop(now + 0.3);
+  }
+
   // SFX Synthesis
   playSmsNotificationSound() {
     const ctx = this.ensureContext();

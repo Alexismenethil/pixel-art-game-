@@ -55,6 +55,38 @@ const paceDelays: Record<NonNullable<StoryBeat["pace"]>, number> = {
   freeze: 56
 };
 
+// Each speaker gets a signature color for the name + dialogue accent bar,
+// so the eye instantly knows whose voice it is before reading a word.
+const speakerColors: Record<StoryBeat["speaker"], string> = {
+  Alexis: "#e79037",
+  Kiara: "#c79bff",
+  Ambos: "#8fe8ff",
+  Narrador: "#9fb0c4",
+  Chofer: "#d9b48a"
+};
+
+const speakerAccentHex: Record<StoryBeat["speaker"], number> = {
+  Alexis: 0xe79037,
+  Kiara: 0xc79bff,
+  Ambos: 0x8fe8ff,
+  Narrador: 0x9fb0c4,
+  Chofer: 0xd9b48a
+};
+
+// Per-location color grade (multiply wash) so each place has a distinct film
+// "look": cool dusk in the taxi/hospital, golden hour outdoors, blue night.
+const colorGrades: Record<LocationId, { color: number; alpha: number }> = {
+  taxi: { color: 0x9fb6e0, alpha: 0.2 },
+  hospital: { color: 0xbcc8d6, alpha: 0.14 },
+  road: { color: 0xffdca8, alpha: 0.18 },
+  bosquete: { color: 0xe6e2a8, alpha: 0.16 },
+  valley: { color: 0xffe2b0, alpha: 0.18 },
+  ravine: { color: 0xdac9a8, alpha: 0.15 },
+  river: { color: 0xffd9c0, alpha: 0.18 },
+  night: { color: 0x6a78b0, alpha: 0.26 },
+  room: { color: 0xd8c0e0, alpha: 0.15 }
+};
+
 export class StoryScene extends Phaser.Scene {
   private chapter!: Chapter;
   private beatIndex = 0;
@@ -85,6 +117,14 @@ export class StoryScene extends Phaser.Scene {
   private heartbeatPulse = 0;
   private bloomOverlay!: Phaser.GameObjects.Rectangle;
   private chromaticOverlay!: Phaser.GameObjects.Rectangle;
+  private godraysContainer!: Phaser.GameObjects.Container;
+  private godraysShafts: Phaser.GameObjects.Rectangle[] = [];
+  private colorGradeOverlay!: Phaser.GameObjects.Rectangle;
+  private gradedLocation?: LocationId;
+  private filmGrain?: Phaser.GameObjects.TileSprite;
+  private dialogueAccent!: Phaser.GameObjects.Rectangle;
+  private currentSpeaker: StoryBeat["speaker"] = "Narrador";
+  private typingIndex = 0;
   private locationCard?: Phaser.GameObjects.Container;
   private whisperText?: Phaser.GameObjects.Text;
   private currentPace: NonNullable<StoryBeat["pace"]> = "normal";
@@ -165,6 +205,10 @@ export class StoryScene extends Phaser.Scene {
     this.endCinemaActive = false;
     this.cameraTilt = 0;
     this.cameraBaseZoom = 1;
+    this.currentSpeaker = "Narrador";
+    this.typingIndex = 0;
+    this.godraysShafts = [];
+    this.gradedLocation = undefined;
   }
 
   create() {
@@ -230,6 +274,13 @@ export class StoryScene extends Phaser.Scene {
     this.actors.kiara.update(seconds);
     this.updateCameraDrift(seconds);
     this.updateHeartbeatPulse();
+    this.updateGodrays(seconds);
+
+    if (this.filmGrain) {
+      // Jitter the noise each frame so the grain crawls like real film stock.
+      this.filmGrain.setTilePosition(Math.random() * 128, Math.random() * 128);
+      this.filmGrain.setAlpha(0.04 + Math.random() * 0.025);
+    }
 
     this.promptText.setAlpha(0.45 + Math.sin(seconds * 4) * 0.25);
 
@@ -255,6 +306,7 @@ export class StoryScene extends Phaser.Scene {
       .rectangle(0, 0, 860, 128, 0x181d25, 0.92)
       .setOrigin(0)
       .setStrokeStyle(3, 0x697383);
+    this.dialogueAccent = this.add.rectangle(0, 0, 6, 128, 0x9fb0c4, 0.95).setOrigin(0);
     this.speakerText = this.add.text(24, 18, "", {
       fontFamily: "Courier New",
       fontSize: "20px",
@@ -276,7 +328,7 @@ export class StoryScene extends Phaser.Scene {
       })
       .setOrigin(0, 0.5);
 
-    this.dialogueBox.add([this.dialogueBg, this.speakerText, this.dialogueText, this.promptText]);
+    this.dialogueBox.add([this.dialogueBg, this.dialogueAccent, this.speakerText, this.dialogueText, this.promptText]);
 
     this.choicesContainer = this.add.container(72, 250).setDepth(82);
     this.choicesContainer.setScrollFactor(0);
@@ -350,6 +402,15 @@ export class StoryScene extends Phaser.Scene {
   }
 
   private createCinematicUi() {
+    // Color grade sits lowest of the overlays and multiplies the scene to give
+    // each location a cohesive cinematic palette.
+    this.colorGradeOverlay = this.add
+      .rectangle(0, 0, 960, 540, 0xffffff, 0)
+      .setOrigin(0)
+      .setDepth(70)
+      .setScrollFactor(0)
+      .setBlendMode(Phaser.BlendModes.MULTIPLY);
+
     this.warmthOverlay = this.add
       .rectangle(0, 0, 960, 540, 0xffd7a3, 0)
       .setOrigin(0)
@@ -396,10 +457,77 @@ export class StoryScene extends Phaser.Scene {
       .setDepth(72)
       .setScrollFactor(0)
       .setBlendMode(Phaser.BlendModes.SCREEN);
+
+    this.createGodrays();
+    this.createFilmGrain();
+  }
+
+  // A faint, animated film-grain veil over the whole picture (but under the
+  // dialogue UI) for an organic, celluloid texture. Built from a one-time noise
+  // canvas tiled across the screen; if texture creation fails we skip silently.
+  private createFilmGrain() {
+    const key = "film-grain-noise";
+    try {
+      if (!this.textures.exists(key)) {
+        const size = 128;
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+        const image = ctx.createImageData(size, size);
+        for (let i = 0; i < image.data.length; i += 4) {
+          const v = Math.floor(Math.random() * 255);
+          image.data[i] = v;
+          image.data[i + 1] = v;
+          image.data[i + 2] = v;
+          image.data[i + 3] = 255;
+        }
+        ctx.putImageData(image, 0, 0);
+        this.textures.addCanvas(key, canvas);
+      }
+      this.filmGrain = this.add
+        .tileSprite(0, 0, 960, 540, key)
+        .setOrigin(0)
+        .setDepth(78)
+        .setScrollFactor(0)
+        .setAlpha(0.05)
+        .setBlendMode(Phaser.BlendModes.SCREEN);
+    } catch (e) {
+      console.warn("Film grain unavailable:", e);
+      this.filmGrain = undefined;
+    }
+  }
+
+  // Soft diagonal light shafts that pour in from the upper-left. Screen-blended
+  // so they read as warm sun, not paint. The container alpha is driven per beat
+  // by cinematic.godrays; individual shafts shimmer in update().
+  private createGodrays() {
+    this.godraysContainer = this.add
+      .container(0, 0)
+      .setDepth(72)
+      .setAlpha(0)
+      .setScrollFactor(0)
+      .setBlendMode(Phaser.BlendModes.SCREEN);
+
+    const shaftColors = [0xfff2dc, 0xffe6c0, 0xfff7e2];
+    this.godraysShafts = [];
+    for (let i = 0; i < 6; i += 1) {
+      const shaft = this.add
+        .rectangle(120 + i * 150, 270, 46 + (i % 3) * 18, 1100, shaftColors[i % shaftColors.length], 0.24)
+        .setOrigin(0.5)
+        .setAngle(24)
+        .setBlendMode(Phaser.BlendModes.SCREEN);
+      shaft.setData("baseAlpha", 0.2 + (i % 3) * 0.06);
+      shaft.setData("baseX", 120 + i * 150);
+      shaft.setData("phase", i * 1.3);
+      this.godraysContainer.add(shaft);
+      this.godraysShafts.push(shaft);
+    }
   }
 
   private createUiCamera() {
-    const uiObjects = [
+    const uiObjects: Phaser.GameObjects.GameObject[] = [
       this.dialogueBox,
       this.choicesContainer,
       this.locationText,
@@ -416,8 +544,11 @@ export class StoryScene extends Phaser.Scene {
       this.cinematicBottomBar,
       this.heartbeatOverlay,
       this.bloomOverlay,
-      this.chromaticOverlay
+      this.chromaticOverlay,
+      this.godraysContainer,
+      this.colorGradeOverlay
     ];
+    if (this.filmGrain) uiObjects.push(this.filmGrain);
     const worldObjects = [
       ...this.map.getRenderObjects(),
       this.particles.getRenderObject(),
@@ -434,11 +565,15 @@ export class StoryScene extends Phaser.Scene {
 
   private updateCameraDrift(seconds: number) {
     if (this.cameraSettling) return;
-    if (this.cameraDrift.x === 0 && this.cameraDrift.y === 0) return;
 
-    const dx = Math.sin(seconds * this.cameraDrift.speed) * this.cameraDrift.x;
-    const dy = Math.cos(seconds * this.cameraDrift.speed * 0.82) * this.cameraDrift.y;
-    this.cameras.main.centerOn(this.cameraTarget.x + dx, this.cameraTarget.y + dy);
+    // Authored drift (parallax-style sweep) plus a tiny layered "handheld"
+    // breath so even a locked-off frame feels held by a person, never frozen.
+    const driftX = Math.sin(seconds * this.cameraDrift.speed) * this.cameraDrift.x;
+    const driftY = Math.cos(seconds * this.cameraDrift.speed * 0.82) * this.cameraDrift.y;
+    const breathX = Math.sin(seconds * 0.9) * 0.6 + Math.sin(seconds * 1.7 + 1.3) * 0.32;
+    const breathY = Math.cos(seconds * 0.8) * 0.5 + Math.sin(seconds * 1.3 + 0.7) * 0.28;
+
+    this.cameras.main.centerOn(this.cameraTarget.x + driftX + breathX, this.cameraTarget.y + driftY + breathY);
   }
 
   private applyCinematicMood(beat: StoryBeat, immediate = false) {
@@ -525,6 +660,18 @@ export class StoryScene extends Phaser.Scene {
     const slowmo = cinematic?.slowmo ?? 0;
     const targetScale = slowmo > 0 ? 1 - Math.max(0, Math.min(0.7, slowmo)) : 1;
     this.time.timeScale = targetScale;
+
+    const godrays = cinematic?.godrays ?? 0;
+    this.tweens.add({
+      targets: this.godraysContainer,
+      alpha: godrays,
+      duration: immediate ? 0 : 900,
+      ease: "Sine.easeInOut"
+    });
+
+    if (!immediate && cinematic?.petals) {
+      this.spawnPetals();
+    }
   }
 
   private currentBeat() {
@@ -537,12 +684,13 @@ export class StoryScene extends Phaser.Scene {
     this.autoAdvanceTimer = undefined;
     this.map.setLocation(beat.location);
     this.particles.setLocation(beat.location, immediate);
+    this.applyColorGrade(beat.location, immediate);
     if (this.audioEnabled) {
       this.ambience.setLocationAmbience(beat.location, immediate);
       void this.updateBackgroundMusicForLocation(beat.location);
     }
     this.locationText.setText(`${this.chapter.title}  /  ${locationLabels[beat.location]}`);
-    this.speakerText.setText(beat.speaker);
+    this.setSpeaker(beat.speaker, immediate);
     this.clearChoices();
     this.currentPace = beat.pace ?? "normal";
     if (beat.cinematic?.persistDialogue) {
@@ -1083,6 +1231,92 @@ export class StoryScene extends Phaser.Scene {
     const baseGlow = this.heartbeatIntensity * 0.1;
     const pulseGlow = this.heartbeatPulse * 0.14;
     this.heartbeatOverlay.setAlpha(Math.min(0.4, baseGlow + pulseGlow));
+  }
+
+  private applyColorGrade(location: LocationId, immediate = false) {
+    if (this.gradedLocation === location && !immediate) return;
+    this.gradedLocation = location;
+    const grade = colorGrades[location] ?? { color: 0xffffff, alpha: 0 };
+
+    if (immediate) {
+      this.colorGradeOverlay.setFillStyle(grade.color, 1);
+      this.colorGradeOverlay.setAlpha(grade.alpha);
+      return;
+    }
+
+    // Dip the wash out, swap the hue, then ease the new palette in so the grade
+    // dissolves between locations instead of snapping.
+    this.tweens.killTweensOf(this.colorGradeOverlay);
+    this.tweens.add({
+      targets: this.colorGradeOverlay,
+      alpha: 0,
+      duration: 240,
+      ease: "Sine.easeIn",
+      onComplete: () => {
+        this.colorGradeOverlay.setFillStyle(grade.color, 1);
+        this.tweens.add({
+          targets: this.colorGradeOverlay,
+          alpha: grade.alpha,
+          duration: 560,
+          ease: "Sine.easeOut"
+        });
+      }
+    });
+  }
+
+  private updateGodrays(seconds: number) {
+    if (this.godraysContainer.alpha <= 0.001) return;
+    for (const shaft of this.godraysShafts) {
+      const phase = shaft.getData("phase") as number;
+      const baseAlpha = shaft.getData("baseAlpha") as number;
+      const baseX = shaft.getData("baseX") as number;
+      shaft.setAlpha(baseAlpha * (0.6 + 0.4 * Math.sin(seconds * 0.6 + phase)));
+      shaft.setX(baseX + Math.sin(seconds * 0.25 + phase) * 14);
+    }
+  }
+
+  // A slow drift of petals/hearts rising through the frame. Used on the kiss
+  // beat to turn a held moment into a soft, swooning bloom.
+  private spawnPetals() {
+    const glyphs = ["♥", "❀", "✿", "❤"];
+    for (let i = 0; i < 16; i += 1) {
+      const startX = 120 + Math.random() * 720;
+      const startY = 520 + Math.random() * 60;
+      const colorHex = i % 3 === 0 ? "#ff7aa8" : i % 3 === 1 ? "#ffd1e3" : "#c79bff";
+      const petal = this.add
+        .text(startX, startY, glyphs[i % glyphs.length], {
+          fontFamily: "Courier New",
+          fontSize: `${14 + (i % 4) * 4}px`,
+          color: colorHex
+        })
+        .setOrigin(0.5)
+        .setDepth(93)
+        .setScrollFactor(0)
+        .setAlpha(0);
+      this.cameras.main.ignore(petal);
+
+      const rise = 240 + Math.random() * 170;
+      const sway = (Math.random() < 0.5 ? -1 : 1) * (30 + Math.random() * 44);
+      this.tweens.add({
+        targets: petal,
+        y: startY - rise,
+        x: startX + sway,
+        alpha: { from: 0, to: 0.9 },
+        angle: sway > 0 ? 42 : -42,
+        delay: i * 80,
+        duration: 2600 + Math.random() * 1300,
+        ease: "Sine.easeOut",
+        onComplete: () => {
+          this.tweens.add({
+            targets: petal,
+            alpha: 0,
+            duration: 600,
+            ease: "Sine.easeIn",
+            onComplete: () => petal.destroy()
+          });
+        }
+      });
+    }
   }
 
   private showLocationCard(title: string, subtitle?: string) {
@@ -1756,6 +1990,27 @@ export class StoryScene extends Phaser.Scene {
     this.memoryCounterText.setVisible(this.guidesVisible);
   }
 
+  private setSpeaker(speaker: StoryBeat["speaker"], immediate = false) {
+    const changed = speaker !== this.currentSpeaker;
+    this.currentSpeaker = speaker;
+    this.speakerText.setText(speaker);
+    this.speakerText.setColor(speakerColors[speaker] ?? "#fff2dc");
+
+    const accentColor = speakerAccentHex[speaker] ?? 0x697383;
+    this.dialogueAccent.setFillStyle(accentColor, 0.95);
+    this.dialogueBg.setStrokeStyle(3, accentColor, 0.7);
+
+    if (immediate || !changed) return;
+
+    // A new voice should "land": the name and its accent bar slide/fade in.
+    this.tweens.killTweensOf(this.speakerText);
+    this.tweens.killTweensOf(this.dialogueAccent);
+    this.speakerText.setAlpha(0.2).setX(16);
+    this.tweens.add({ targets: this.speakerText, alpha: 1, x: 24, duration: 260, ease: "Sine.easeOut" });
+    this.dialogueAccent.setAlpha(0.15);
+    this.tweens.add({ targets: this.dialogueAccent, alpha: 0.95, duration: 340, ease: "Sine.easeOut" });
+  }
+
   private startDialogueText(text: string, showChoicesWhenDone = false) {
     this.dialogueTimer?.remove(false);
     this.dialogueTimer = undefined;
@@ -1769,21 +2024,47 @@ export class StoryScene extends Phaser.Scene {
       return;
     }
 
-    let index = 0;
+    this.typingIndex = 0;
     this.promptText.setText("toca para completar");
-    const delay = paceDelays[this.currentPace] ?? dialogueTypingDelayMs;
-    this.dialogueTimer = this.time.addEvent({
-      delay,
-      loop: true,
-      callback: () => {
-        index += 1;
-        this.dialogueText.setText(this.fullDialogueText.slice(0, index));
+    this.scheduleNextChar();
+  }
 
-        if (index >= this.fullDialogueText.length) {
-          this.finishDialogueText();
-        }
-      }
-    });
+  // Types one character then schedules the next with a delay that reacts to
+  // punctuation, so the line breathes like a spoken sentence instead of a
+  // metronome. A soft per-speaker blip rides along for texture.
+  private scheduleNextChar() {
+    const text = this.fullDialogueText;
+    if (this.typingIndex >= text.length) {
+      this.finishDialogueText();
+      return;
+    }
+
+    this.typingIndex += 1;
+    this.dialogueText.setText(text.slice(0, this.typingIndex));
+
+    const justTyped = text.charAt(this.typingIndex - 1);
+    const prevChar = this.typingIndex >= 2 ? text.charAt(this.typingIndex - 2) : " ";
+    const isWordStart = justTyped.trim().length > 0 && (prevChar === " " || this.typingIndex === 1);
+    // One soft musical note per word (not per letter), randomly skipped, so the
+    // text "sings" gently in each character's register instead of clicking.
+    if (this.audioEnabled && isWordStart && Math.random() < 0.55) {
+      this.ambience?.playTypingTone(this.currentSpeaker);
+    }
+
+    if (this.typingIndex >= text.length) {
+      this.finishDialogueText();
+      return;
+    }
+
+    this.dialogueTimer = this.time.delayedCall(this.delayForChar(justTyped), () => this.scheduleNextChar());
+  }
+
+  private delayForChar(ch: string) {
+    const base = paceDelays[this.currentPace] ?? dialogueTypingDelayMs;
+    if (".!?".includes(ch)) return base * 9;
+    if (",;:".includes(ch)) return base * 4.5;
+    if (ch === " ") return base * 0.6;
+    return base;
   }
 
   private completeDialogueText() {
@@ -1892,7 +2173,7 @@ export class StoryScene extends Phaser.Scene {
 
     this.awaitingChoice = false;
     this.clearChoices();
-    this.speakerText.setText(choice.resultSpeaker ?? "Narrador");
+    this.setSpeaker(choice.resultSpeaker ?? "Narrador");
     this.startDialogueText(choice.resultText);
 
     return true;

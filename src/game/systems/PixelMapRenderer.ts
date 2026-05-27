@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import type { LocationId } from "../data/chapters";
 
-type GeneratedLocation = "taxi" | "hospital" | "road" | "bosquete" | "valley" | "ravine" | "river";
+type GeneratedLocation = LocationId;
 type LayerName = "sky" | "back" | "mid" | "front" | "fx";
 
 type LayerSprite = Phaser.GameObjects.TileSprite & {
@@ -10,7 +10,22 @@ type LayerSprite = Phaser.GameObjects.TileSprite & {
   floatSpeed: number;
 };
 
-const generatedLocations: GeneratedLocation[] = ["taxi", "hospital", "road", "bosquete", "valley", "ravine", "river"];
+type BeautySprite = Phaser.GameObjects.Image & {
+  frameIndex: number;
+  baseAlpha: number;
+};
+
+const generatedLocations: GeneratedLocation[] = [
+  "taxi",
+  "hospital",
+  "road",
+  "bosquete",
+  "valley",
+  "ravine",
+  "river",
+  "night",
+  "room"
+];
 const layerNames: LayerName[] = ["sky", "back", "mid", "front", "fx"];
 const layerDepths: Record<LayerName, number> = {
   sky: 0,
@@ -29,21 +44,23 @@ const layerAlphas: Record<LayerName, number> = {
 };
 
 const layerSpeeds: Record<LayerName, number> = {
-  sky: 0,
-  back: 0,
-  mid: 0,
-  front: 0,
+  sky: 0.9,
+  back: 1.4,
+  mid: 2.1,
+  front: 0.8,
   fx: 18
 };
 
 const locationLayerSpeeds: Record<GeneratedLocation, Partial<Record<LayerName, number>>> = {
-  taxi: { sky: 0, back: 0, mid: 0, front: 0, fx: 10 },
-  hospital: { sky: 0, back: 0, mid: 0, front: 0, fx: 10 },
-  road: { sky: 0, back: 0, mid: 0, front: 0, fx: 16 },
-  bosquete: { sky: 0, back: 0, mid: 0, front: 0, fx: 14 },
-  valley: { sky: 0, back: 0, mid: 0, front: 0, fx: 9 },
-  ravine: { sky: 0, back: 0, mid: 0, front: 0, fx: 12 },
-  river: { sky: 0, back: 0, mid: 0, front: 0, fx: 28 }
+  taxi: { sky: 0.5, back: 0.9, mid: 1.1, front: 0.4, fx: 10 },
+  hospital: { sky: 0.5, back: 0.8, mid: 1.1, front: 0.5, fx: 10 },
+  road: { sky: 1.2, back: 1.8, mid: 2.8, front: 1.2, fx: 16 },
+  bosquete: { sky: 1.1, back: 2.4, mid: 3.2, front: 1, fx: 14 },
+  valley: { sky: 1.4, back: 1.8, mid: 2.4, front: 0.9, fx: 9 },
+  ravine: { sky: 0.8, back: 1.5, mid: 2.5, front: 1.1, fx: 12 },
+  river: { sky: 1, back: 1.5, mid: 2.8, front: 1.2, fx: 28 },
+  night: { sky: 0.7, back: 1, mid: 1.6, front: 0.7, fx: 7 },
+  room: { sky: 0.35, back: 0.5, mid: 0.7, front: 0.3, fx: 4 }
 };
 
 const locationLayerFloats: Record<GeneratedLocation, Partial<Record<LayerName, number>>> = {
@@ -53,7 +70,33 @@ const locationLayerFloats: Record<GeneratedLocation, Partial<Record<LayerName, n
   bosquete: { back: 3, fx: 9 },
   valley: { fx: 5 },
   ravine: { fx: 7 },
-  river: { fx: 6 }
+  river: { mid: 1.8, fx: 6 },
+  night: { back: 1.4, fx: 3 },
+  room: { fx: 1.6 }
+};
+
+const locationBeautyAlpha: Record<GeneratedLocation, number> = {
+  taxi: 0.22,
+  hospital: 0.24,
+  road: 0.26,
+  bosquete: 0.25,
+  valley: 0.25,
+  ravine: 0.24,
+  river: 0.28,
+  night: 0.32,
+  room: 0.3
+};
+
+const locationBeautySpeed: Record<GeneratedLocation, number> = {
+  taxi: 0.11,
+  hospital: 0.085,
+  road: 0.08,
+  bosquete: 0.095,
+  valley: 0.07,
+  ravine: 0.08,
+  river: 0.13,
+  night: 0.09,
+  room: 0.075
 };
 
 export class PixelMapRenderer {
@@ -61,6 +104,7 @@ export class PixelMapRenderer {
   private readonly fallbackGraphics: Phaser.GameObjects.Graphics;
   private readonly flashGraphics: Phaser.GameObjects.Graphics;
   private readonly layerMap = new Map<GeneratedLocation, LayerSprite[]>();
+  private readonly beautyFrameMap = new Map<GeneratedLocation, BeautySprite[]>();
   private location: LocationId = "hospital";
   private transitionAlpha = 0;
 
@@ -83,14 +127,17 @@ export class PixelMapRenderer {
       const visible = key === location;
       layers.forEach((layer) => layer.setVisible(visible));
     }
+
+    for (const [key, frames] of this.beautyFrameMap) {
+      const visible = key === location;
+      frames.forEach((frame) => frame.setVisible(visible));
+    }
   }
 
   update(timeSeconds: number) {
     this.fallbackGraphics.clear();
 
     if (this.isGeneratedLocation(this.location)) this.updateGeneratedLayers(this.location, timeSeconds);
-    else if (this.location === "night") this.drawNight(timeSeconds);
-    else if (this.location === "room") this.drawRoom(timeSeconds);
 
     this.flashGraphics.clear();
     if (this.transitionAlpha > 0) {
@@ -104,6 +151,7 @@ export class PixelMapRenderer {
     return [
       this.fallbackGraphics,
       this.flashGraphics,
+      ...Array.from(this.beautyFrameMap.values()).flat(),
       ...Array.from(this.layerMap.values()).flat()
     ];
   }
@@ -111,6 +159,23 @@ export class PixelMapRenderer {
   private createGeneratedLayers() {
     for (const location of generatedLocations) {
       const layers: LayerSprite[] = [];
+      const beautyFrames: BeautySprite[] = [];
+
+      for (let index = 0; index < 3; index += 1) {
+        const textureKey = `bg-${location}-beauty-${index + 1}`;
+        if (!this.scene.textures.exists(textureKey)) continue;
+
+        const frame = this.scene.add
+          .image(480, 270, textureKey)
+          .setDepth(17)
+          .setAlpha(0)
+          .setVisible(false)
+          .setBlendMode(Phaser.BlendModes.SCREEN) as BeautySprite;
+        frame.setDisplaySize(978, 552);
+        frame.frameIndex = index;
+        frame.baseAlpha = locationBeautyAlpha[location];
+        beautyFrames.push(frame);
+      }
 
       for (const layerName of layerNames) {
         const textureKey = `bg-${location}-${layerName}`;
@@ -127,6 +192,7 @@ export class PixelMapRenderer {
         layers.push(layer);
       }
 
+      this.beautyFrameMap.set(location, beautyFrames);
       this.layerMap.set(location, layers);
     }
   }
@@ -136,13 +202,41 @@ export class PixelMapRenderer {
     if (!layers) return;
 
     for (const layer of layers) {
-      layer.tilePositionX = time * layer.layerSpeed;
-      layer.tilePositionY = Math.sin(time * 0.8 + layer.depth) * layer.floatSpeed;
+      const isFx = layer.layerName === "fx";
+      layer.tilePositionX = isFx
+        ? time * layer.layerSpeed
+        : Math.sin(time * 0.22 + layer.depth * 0.11) * layer.layerSpeed;
+      layer.tilePositionY =
+        Math.sin(time * (isFx ? 0.8 : 0.26) + layer.depth * 0.13) * layer.floatSpeed;
       const alpha =
-        layer.layerName === "fx"
+        isFx
           ? layerAlphas.fx + Math.sin(time * 1.8 + layer.depth) * 0.12
-          : layerAlphas[layer.layerName];
-      layer.setAlpha(alpha);
+          : layerAlphas[layer.layerName] + Math.sin(time * 0.38 + layer.depth) * 0.018;
+      layer.setAlpha(Phaser.Math.Clamp(alpha, 0, 1));
+    }
+
+    this.updateBeautyFrames(location, time);
+  }
+
+  private updateBeautyFrames(location: GeneratedLocation, time: number) {
+    const frames = this.beautyFrameMap.get(location);
+    if (!frames?.length) return;
+
+    const cycle = (time * locationBeautySpeed[location]) % frames.length;
+    const driftX = location === "taxi" || location === "room" ? 1.2 : 2.6;
+    const driftY = location === "river" || location === "bosquete" ? 1.8 : 1.1;
+
+    for (const frame of frames) {
+      const rawDistance = Math.abs(cycle - frame.frameIndex);
+      const distance = Math.min(rawDistance, frames.length - rawDistance);
+      const weight = Phaser.Math.Clamp(1 - distance, 0, 1);
+      const breathe = 0.94 + Math.sin(time * 0.42 + frame.frameIndex * 1.7) * 0.06;
+      frame.setAlpha(frame.baseAlpha * weight * breathe);
+      frame.setPosition(
+        480 + Math.sin(time * 0.19 + frame.frameIndex * 1.9) * driftX,
+        270 + Math.cos(time * 0.16 + frame.frameIndex * 1.4) * driftY
+      );
+      frame.setScale(1.018 + Math.sin(time * 0.12 + frame.frameIndex) * 0.004);
     }
   }
 

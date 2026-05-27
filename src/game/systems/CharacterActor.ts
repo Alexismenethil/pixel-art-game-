@@ -61,9 +61,27 @@ export class CharacterActor {
       scaleY: state.scale ? state.scale / 0.46 : 1
     };
 
-    if (immediate || !willBeVisible || (!wasVisible && willBeVisible)) {
+    if (immediate || !willBeVisible) {
       this.container.setPosition(target.x, target.y);
       this.container.setScale(target.scaleX, target.scaleY);
+      this.container.setAlpha(1);
+      return;
+    }
+
+    // Fresh appearance: rise and settle with a soft pop, fading in from nothing.
+    if (!wasVisible && willBeVisible) {
+      this.container.setPosition(target.x, target.y + 16);
+      this.container.setScale(target.scaleX * 0.9, target.scaleY * 0.9);
+      this.container.setAlpha(0);
+      this.scene.tweens.add({
+        targets: this.container,
+        y: target.y,
+        scaleX: target.scaleX,
+        scaleY: target.scaleY,
+        alpha: 1,
+        duration: 560,
+        ease: "Back.easeOut"
+      });
       return;
     }
 
@@ -79,22 +97,38 @@ export class CharacterActor {
   }
 
   update(timeSeconds: number) {
-    const speed = this.mood === "walk" ? 10 : this.mood === "nervous" ? 8 : 4;
-    const bobSize = this.mood === "walk" ? 5 : this.mood === "happy" ? 4 : 2;
+    const speed =
+      this.mood === "walk" ? 10 : this.mood === "nervous" ? 8 : this.mood === "laughing" ? 7 : this.mood === "happy" ? 6 : 4;
+    const bobSize = this.mood === "walk" ? 5 : this.mood === "laughing" ? 5 : this.mood === "happy" ? 4 : 2;
     const bob = Math.sin(timeSeconds * speed + this.phase) * bobSize;
+    // Happy/laughing get an extra little upward bounce on top of the bob.
+    const bounce =
+      this.mood === "happy" || this.mood === "laughing"
+        ? Math.abs(Math.sin(timeSeconds * speed * 0.5 + this.phase)) * 3
+        : 0;
     const breathe = 1 + Math.sin(timeSeconds * 3 + this.phase) * 0.012;
     const shake = this.mood === "nervous" ? Math.sin(timeSeconds * 16) * 2 : 0;
-    const rotate =
-      this.mood === "surprised"
-        ? Math.sin(timeSeconds * 8 + this.phase) * 0.025
-        : this.mood === "thinking"
-          ? -0.025
-          : 0;
+    const lean =
+      this.mood === "shy" || this.mood === "soft"
+        ? Math.sin(timeSeconds * 1.4 + this.phase) * 0.02
+        : this.mood === "laughing"
+          ? Math.sin(timeSeconds * 9 + this.phase) * 0.04
+          : this.mood === "surprised"
+            ? Math.sin(timeSeconds * 8 + this.phase) * 0.025
+            : this.mood === "thinking"
+              ? -0.025
+              : 0;
 
-    this.sprite.setY(bob);
+    const offsetY = bob - bounce;
+    this.sprite.setY(offsetY);
     this.sprite.setX(shake);
     this.sprite.setScale(0.46 * breathe);
-    this.sprite.setRotation(rotate);
+    this.sprite.setRotation(lean);
+
+    // Shadow tightens and lightens as the character lifts off the ground.
+    const lift = Math.max(0, -offsetY);
+    this.shadow.setScale(Math.max(0.62, 1 - lift * 0.014), Math.max(0.5, 1 - lift * 0.02));
+    this.shadow.setAlpha(Math.max(0.24, 0.38 - lift * 0.006));
 
     if (this.reaction) {
       const float = Math.sin(timeSeconds * 3.1 + this.phase) * 4;

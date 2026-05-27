@@ -10,6 +10,9 @@ type ParticleFieldKind =
   | "fireflies"
   | "headlights"
   | "wind-streak"
+  | "bokeh"
+  | "petals"
+  | "mist"
   | "none";
 
 type ParticleSpec = {
@@ -28,14 +31,14 @@ type ParticleSpec = {
 
 const fieldByLocation: Record<LocationId, ParticleFieldKind[]> = {
   taxi: ["headlights", "dust-cool"],
-  hospital: ["dust-warm"],
-  road: ["pollen", "wind-streak"],
-  bosquete: ["leaves", "pollen"],
-  valley: ["pollen", "wind-streak"],
-  ravine: ["dust-warm", "wind-streak"],
-  river: ["river-sparkle", "pollen"],
-  night: ["fireflies"],
-  room: ["dust-warm"]
+  hospital: ["dust-warm", "mist"],
+  road: ["pollen", "wind-streak", "petals"],
+  bosquete: ["leaves", "pollen", "petals"],
+  valley: ["pollen", "wind-streak", "bokeh"],
+  ravine: ["dust-warm", "wind-streak", "mist"],
+  river: ["river-sparkle", "pollen", "bokeh", "mist"],
+  night: ["fireflies", "dust-cool"],
+  room: ["dust-warm", "mist"]
 };
 
 const baseSpecs: Record<ParticleFieldKind, Omit<ParticleSpec, "kind">> = {
@@ -130,6 +133,41 @@ const baseSpecs: Record<ParticleFieldKind, Omit<ParticleSpec, "kind">> = {
     alpha: { min: 0.08, max: 0.22 },
     twinkleSpeed: 0.4,
     depth: 23
+  },
+  bokeh: {
+    count: 10,
+    color: 0xfff3d4,
+    glowColor: 0xffe1b0,
+    size: 16,
+    spawnRect: new Phaser.Geom.Rectangle(40, 80, 880, 340),
+    driftX: { min: -10, max: 16 },
+    driftY: { min: -8, max: 6 },
+    alpha: { min: 0.05, max: 0.18 },
+    twinkleSpeed: 0.7,
+    depth: 25
+  },
+  petals: {
+    count: 10,
+    color: 0xffb7c9,
+    glowColor: 0xffe2ea,
+    size: 4,
+    spawnRect: new Phaser.Geom.Rectangle(-80, 80, 1120, 340),
+    driftX: { min: 12, max: 34 },
+    driftY: { min: 4, max: 18 },
+    alpha: { min: 0.35, max: 0.78 },
+    twinkleSpeed: 0.8,
+    depth: 25
+  },
+  mist: {
+    count: 8,
+    color: 0xf7eef0,
+    size: 18,
+    spawnRect: new Phaser.Geom.Rectangle(-80, 120, 1120, 240),
+    driftX: { min: -8, max: 14 },
+    driftY: { min: -2, max: 3 },
+    alpha: { min: 0.04, max: 0.12 },
+    twinkleSpeed: 0.5,
+    depth: 21
   },
   none: {
     count: 0,
@@ -252,6 +290,16 @@ export class ParticleField {
           .setStrokeStyle(1, spec.glowColor ?? spec.color, 0.4)
           .setAngle(Math.random() * 360)
           .setDepth(spec.depth);
+      } else if (kind === "petals") {
+        obj = this.scene.add
+          .ellipse(x, y, size * 1.6, size * 0.9, spec.color, spec.alpha.max)
+          .setStrokeStyle(1, spec.glowColor ?? spec.color, 0.45)
+          .setAngle(Math.random() * 360)
+          .setDepth(spec.depth);
+      } else if (kind === "mist") {
+        obj = this.scene.add
+          .ellipse(x, y, size * 6, size * 1.4, spec.color, spec.alpha.max)
+          .setDepth(spec.depth);
       } else if (kind === "headlights") {
         obj = this.scene.add
           .ellipse(x, y, size * 4, size * 2.2, spec.color, spec.alpha.max)
@@ -260,6 +308,13 @@ export class ParticleField {
         obj = this.scene.add
           .rectangle(x, y, size * 18, size, spec.color, spec.alpha.max)
           .setDepth(spec.depth);
+      } else if (kind === "bokeh") {
+        const orb = this.scene.add
+          .ellipse(x, y, size * 2.4, size * 2.4, spec.color, spec.alpha.max)
+          .setDepth(spec.depth)
+          .setBlendMode(Phaser.BlendModes.SCREEN);
+        if (spec.glowColor) orb.setStrokeStyle(2, spec.glowColor, 0.5);
+        obj = orb;
       } else if (kind === "river-sparkle" || kind === "fireflies") {
         const star = this.scene.add
           .star(x, y, 4, size * 0.5, size * 1.4, spec.color, spec.alpha.max)

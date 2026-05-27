@@ -44,13 +44,31 @@ export class BootScene extends Phaser.Scene {
     this.load.image("characters-sheet", "/assets/characters-sheet.png");
     this.load.image("chapter-1-reference", "/assets/references/chapter-1-ai-background-reference.png");
 
-    const locations = ["taxi", "hospital", "road", "bosquete", "valley", "ravine", "river"] as const;
+    const locations = [
+      "taxi",
+      "hospital",
+      "road",
+      "bosquete",
+      "valley",
+      "ravine",
+      "river",
+      "night",
+      "room"
+    ] as const;
     const layers = ["sky", "back", "mid", "front", "fx"] as const;
+    const beautyFrames = ["1", "2", "3"] as const;
 
     for (const location of locations) {
       for (const layer of layers) {
         if (location === "bosquete" && layer === "front") continue;
         this.load.image(`bg-${location}-${layer}`, `/assets/chapter-1/${location}/${layer}.png`);
+      }
+
+      for (const frame of beautyFrames) {
+        this.load.image(
+          `bg-${location}-beauty-${frame}`,
+          `/assets/generated/backgrounds/${location}/beauty-${frame}.png`
+        );
       }
     }
 
