@@ -4,7 +4,7 @@ import type { ActorBeatState, ActorId, Mood } from "../data/chapters";
 export class CharacterActor {
   private readonly scene: Phaser.Scene;
   private readonly container: Phaser.GameObjects.Container;
-  private readonly sprite: Phaser.GameObjects.Image;
+  private readonly sprite: Phaser.GameObjects.Sprite;
   private readonly shadow: Phaser.GameObjects.Ellipse;
   private readonly reactionText: Phaser.GameObjects.Text;
   private readonly actorId: ActorId;
@@ -23,7 +23,7 @@ export class CharacterActor {
     this.actorId = actorId;
     this.phase = phase;
     this.shadow = scene.add.ellipse(0, -4, 112, 18, 0x000000, 0.38);
-    this.sprite = scene.add.image(0, 0, `${actorId}-neutral`).setOrigin(0.5, 1);
+    this.sprite = scene.add.sprite(0, 0, `${actorId}-neutral`).setOrigin(0.5, 1);
     this.sprite.setScale(0.46);
     this.reactionText = scene.add
       .text(0, -206, "", {
@@ -39,6 +39,7 @@ export class CharacterActor {
 
     this.container = scene.add.container(x, y, [this.shadow, this.sprite, this.reactionText]);
     this.container.setDepth(30);
+    this.createAnimations();
   }
 
   applyBeat(state: ActorBeatState, immediate = false) {
@@ -47,7 +48,13 @@ export class CharacterActor {
 
     this.mood = state.mood;
     this.container.setVisible(willBeVisible);
-    this.sprite.setTexture(this.textureForState(state));
+    const animationKey = this.animationForState(state);
+    if (animationKey && willBeVisible) {
+      this.sprite.play(animationKey, true);
+    } else {
+      this.sprite.stop();
+      this.sprite.setTexture(this.textureForState(state));
+    }
     this.sprite.setFlipX(state.facing === "left");
     this.sprite.setScale(state.scale ?? 0.46);
     this.reaction = state.reaction ?? "";
@@ -98,8 +105,8 @@ export class CharacterActor {
 
   update(timeSeconds: number) {
     const speed =
-      this.mood === "walk" ? 10 : this.mood === "nervous" ? 8 : this.mood === "laughing" ? 7 : this.mood === "happy" ? 6 : 4;
-    const bobSize = this.mood === "walk" ? 5 : this.mood === "laughing" ? 5 : this.mood === "happy" ? 4 : 2;
+      this.mood === "walk" ? 4.2 : this.mood === "nervous" ? 8 : this.mood === "laughing" ? 7 : this.mood === "happy" ? 6 : 4;
+    const bobSize = this.mood === "walk" ? 2 : this.mood === "laughing" ? 5 : this.mood === "happy" ? 4 : 2;
     const bob = Math.sin(timeSeconds * speed + this.phase) * bobSize;
     // Happy/laughing get an extra little upward bounce on top of the bob.
     const bounce =
@@ -169,4 +176,30 @@ export class CharacterActor {
     return keys.find((key) => this.scene.textures.exists(key)) ?? keys[keys.length - 1];
   }
 
+  private createAnimations() {
+    const sheetKey = `${this.actorId}-walk-side-sheet`;
+    const animationKey = `${this.actorId}-walk-side`;
+
+    if (!this.scene.textures.exists(sheetKey) || this.scene.anims.exists(animationKey)) return;
+
+    this.scene.anims.create({
+      key: animationKey,
+      frames: this.scene.anims.generateFrameNumbers(sheetKey, { start: 0, end: 7 }),
+      frameRate: 3.2,
+      repeat: -1
+    });
+  }
+
+  private animationForState(state: ActorBeatState) {
+    const animationKey = `${this.actorId}-walk-side`;
+    if (
+      (state.mood === "walk" || state.pose === "walking-side") &&
+      this.scene.textures.exists(`${this.actorId}-walk-side-sheet`) &&
+      this.scene.anims.exists(animationKey)
+    ) {
+      return animationKey;
+    }
+
+    return undefined;
+  }
 }

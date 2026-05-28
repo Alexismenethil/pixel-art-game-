@@ -1,4 +1,8 @@
 import type { LocationId } from "../data/chapters";
+import {
+  registerGameAudioContext,
+  unregisterGameAudioContext
+} from "./audioLifecycle";
 
 export type AmbienceId =
   | "taxi"
@@ -212,6 +216,7 @@ export class AmbienceEngine {
     masterCompressor.connect(ctx.destination);
     
     this.context = ctx;
+    registerGameAudioContext(ctx);
     this.bus = bus;
     this.masterHighpass = masterHighpass;
     this.masterAir = masterAir;
@@ -355,9 +360,21 @@ export class AmbienceEngine {
     this.intimateLayer = undefined;
 
     if (this.context) {
+      unregisterGameAudioContext(this.context);
       void this.context.close().catch(() => undefined);
       this.context = undefined;
     }
+    this.bus = undefined;
+    this.masterHighpass = undefined;
+    this.masterAir = undefined;
+    this.masterCompressor = undefined;
+    this.reverbNode = undefined;
+    this.reverbGain = undefined;
+    this.musicBus = undefined;
+    this.musicEqLow = undefined;
+    this.musicEqPresence = undefined;
+    this.musicEqHigh = undefined;
+    this.activeExternalMusic = undefined;
   }
 
   connectExternalMusic(element: HTMLMediaElement, location: LocationId) {

@@ -162,6 +162,15 @@ export class BootScene extends Phaser.Scene {
       this.load.image(`kiara-pose-${pose}`, `/assets/characters/kiara/poses/${pose}.png`);
     }
 
+    this.load.spritesheet("alexis-walk-side-sheet", "/assets/characters/alexis/animations/walk-side.png", {
+      frameWidth: 256,
+      frameHeight: 386
+    });
+    this.load.spritesheet("kiara-walk-side-sheet", "/assets/characters/kiara/animations/walk-side.png", {
+      frameWidth: 256,
+      frameHeight: 386
+    });
+
     const coupleScenes = [
       "walking-back",
       "hold-hands",

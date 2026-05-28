@@ -14,7 +14,11 @@ import { CharacterActor } from "../game/systems/CharacterActor";
 import { ParticleField } from "../game/systems/ParticleField";
 import { PixelMapRenderer } from "../game/systems/PixelMapRenderer";
 import { AmbienceEngine } from "../game/systems/AmbienceEngine";
-import { FORCE_STOP_AUDIO_EVENT } from "../game/systems/audioLifecycle";
+import {
+  FORCE_STOP_AUDIO_EVENT,
+  registerGameAudioElement,
+  unregisterGameAudioElement
+} from "../game/systems/audioLifecycle";
 import {
   addMemory,
   addStoryStat,
@@ -132,6 +136,8 @@ export class StoryScene extends Phaser.Scene {
   private chromaticOverlay!: Phaser.GameObjects.Rectangle;
   private godraysContainer!: Phaser.GameObjects.Container;
   private godraysShafts: Phaser.GameObjects.Rectangle[] = [];
+  private riverMagicAura?: Phaser.GameObjects.Container;
+  private riverMagicShapes: Phaser.GameObjects.Shape[] = [];
   private colorGradeOverlay!: Phaser.GameObjects.Rectangle;
   private gradedLocation?: LocationId;
   private filmGrain?: Phaser.GameObjects.TileSprite;
@@ -203,7 +209,7 @@ export class StoryScene extends Phaser.Scene {
     this.cameraTarget = { x: 480, y: 270 };
     this.cameraDrift = { x: 0, y: 0, speed: 0.55 };
     this.cameraSettling = false;
-    this.stopAllAudioNow();
+    this.stopAllAudioNow(false);
     this.triedBackgroundMusic = false;
     this.audioEnabled = true;
     this.smsNotification?.destroy();
@@ -222,6 +228,9 @@ export class StoryScene extends Phaser.Scene {
     this.currentSpeaker = "Narrador";
     this.typingIndex = 0;
     this.godraysShafts = [];
+    this.riverMagicAura?.destroy();
+    this.riverMagicAura = undefined;
+    this.riverMagicShapes = [];
     this.gradedLocation = undefined;
   }
 
@@ -290,6 +299,7 @@ export class StoryScene extends Phaser.Scene {
     this.updateCameraDrift(seconds);
     this.updateHeartbeatPulse();
     this.updateGodrays(seconds);
+    this.updateRiverMagic(seconds);
 
     if (this.filmGrain) {
       // Jitter the noise each frame so the grain crawls like real film stock.
@@ -305,6 +315,17 @@ export class StoryScene extends Phaser.Scene {
       if (float > 0) {
         prop.setY(baseY + Math.sin(seconds * 1.6 + index * 0.7) * float);
       }
+
+      const animationFrames = prop.getData("animationFrames") as string[] | undefined;
+      if (animationFrames?.length) {
+        const frameRate = (prop.getData("animationFrameRate") as number | undefined) ?? 5;
+        const phase = (prop.getData("animationPhase") as number | undefined) ?? 0;
+        const frameIndex = Math.floor(seconds * frameRate + phase) % animationFrames.length;
+        const frameTexture = animationFrames[frameIndex];
+        if (frameTexture && prop.texture.key !== frameTexture) {
+          prop.setTexture(frameTexture);
+        }
+      }
     });
 
     if (this.memoryMarker) {
@@ -315,28 +336,28 @@ export class StoryScene extends Phaser.Scene {
   }
 
   private createDialogueUi() {
-    this.dialogueBox = this.add.container(50, 376).setDepth(80);
+    this.dialogueBox = this.add.container(50, 386).setDepth(80);
     this.dialogueBox.setScrollFactor(0);
     this.dialogueBg = this.add
-      .rectangle(0, 0, 860, 128, 0x181d25, 0.92)
+      .rectangle(0, 0, 860, 118, 0x181d25, 0.88)
       .setOrigin(0)
-      .setStrokeStyle(3, 0x697383);
-    this.dialogueAccent = this.add.rectangle(0, 0, 6, 128, 0x9fb0c4, 0.95).setOrigin(0);
+      .setStrokeStyle(2, 0x697383);
+    this.dialogueAccent = this.add.rectangle(0, 0, 6, 118, 0x9fb0c4, 0.95).setOrigin(0);
     this.speakerText = this.add.text(24, 18, "", {
       fontFamily: "Courier New",
-      fontSize: "20px",
+      fontSize: "19px",
       fontStyle: "bold",
       color: "#e79037"
     });
     this.dialogueText = this.add.text(24, 48, "", {
       fontFamily: "Courier New",
-      fontSize: "20px",
+      fontSize: "19px",
       color: "#fff2dc",
-      lineSpacing: 5,
-      wordWrap: { width: 780 }
+      lineSpacing: 4,
+      wordWrap: { width: 790 }
     });
     this.promptText = this.add
-      .text(748, 98, "toca para seguir", {
+      .text(748, 90, "toca para seguir", {
         fontFamily: "Courier New",
         fontSize: "14px",
         color: "#b7b0a5"
@@ -684,6 +705,8 @@ export class StoryScene extends Phaser.Scene {
       ease: "Sine.easeInOut"
     });
 
+    this.setRiverMagicAura(cinematic?.riverMagic ?? 0, immediate);
+
     if (!immediate && cinematic?.petals) {
       this.spawnPetals();
     }
@@ -729,6 +752,7 @@ export class StoryScene extends Phaser.Scene {
       this.startDialogueText(beat.text, Boolean(beat.choices?.length));
     }
     this.dialogueBox.setVisible(!beat.cinematic?.hideDialogue);
+    this.applyHudVisibility(beat, immediate);
 
     this.actors.alexis.applyBeat(beat.actors.alexis, immediate);
     this.actors.kiara.applyBeat(beat.actors.kiara, immediate);
@@ -752,13 +776,16 @@ export class StoryScene extends Phaser.Scene {
 
     if (previousLocation !== beat.location) {
       const card = beat.cinematic?.locationCard;
-      this.time.delayedCall(immediate ? 380 : 0, () => {
-        if (card) {
-          this.showLocationCard(card.title, card.subtitle);
-        } else {
-          this.showLocationCard(locationLabels[beat.location]);
-        }
-      });
+      const showGenericLocation = !card && !beat.cinematic?.hideDialogue && !beat.cinematic?.hideHud;
+      if (card || showGenericLocation) {
+        this.time.delayedCall(immediate ? 380 : 0, () => {
+          if (card) {
+            this.showLocationCard(card.title, card.subtitle);
+          } else {
+            this.showLocationCard(locationLabels[beat.location]);
+          }
+        });
+      }
     }
 
     this.showWhisper(beat.cinematic?.whisper);
@@ -788,6 +815,48 @@ export class StoryScene extends Phaser.Scene {
     this.cameras.main.zoomTo(zoom, duration, "Sine.easeInOut");
 
     this.cameraTilt = 0;
+  }
+
+  private applyHudVisibility(beat: StoryBeat, immediate = false) {
+    const hideHud = this.shouldHideHud(beat);
+    const guideObjects = [this.locationText, this.scoreText, this.memoryCounterText];
+    const hudObjects = [...guideObjects, this.guideToggle, this.audioToggle];
+
+    hudObjects.forEach((object) => {
+      const isGuideObject = guideObjects.includes(object);
+      const shouldShow = !hideHud && (!isGuideObject || this.guidesVisible);
+      this.tweens.killTweensOf(object);
+
+      if (shouldShow) {
+        object.setVisible(true);
+      }
+
+      if (immediate) {
+        object.setAlpha(shouldShow ? 1 : 0);
+        object.setVisible(shouldShow);
+        return;
+      }
+
+      if (!shouldShow && !object.visible) {
+        object.setAlpha(0);
+        return;
+      }
+
+      object.setVisible(true);
+      this.tweens.add({
+        targets: object,
+        alpha: shouldShow ? 1 : 0,
+        duration: 320,
+        ease: "Sine.easeInOut",
+        onComplete: () => {
+          if (!shouldShow) object.setVisible(false);
+        }
+      });
+    });
+  }
+
+  private shouldHideHud(beat: StoryBeat) {
+    return Boolean(beat.cinematic?.hideHud || (beat.cinematic?.intimate && beat.cinematic.letterbox));
   }
 
   private advance(fromAuto = false) {
@@ -1305,44 +1374,378 @@ export class StoryScene extends Phaser.Scene {
     }
   }
 
-  // A slow drift of petals/hearts rising through the frame. Used on the kiss
-  // beat to turn a held moment into a soft, swooning bloom.
-  private spawnPetals() {
-    const glyphs = ["♥", "❀", "✿", "❤"];
+  private setRiverMagicAura(intensity: number, immediate = false) {
+    const targetAlpha = Phaser.Math.Clamp(intensity, 0, 1);
+
+    if (targetAlpha > 0 && !this.riverMagicAura) {
+      this.createRiverMagicAura();
+    }
+
+    if (!this.riverMagicAura) return;
+
+    this.tweens.killTweensOf(this.riverMagicAura);
+
+    if (immediate) {
+      this.riverMagicAura.setAlpha(targetAlpha);
+      this.riverMagicAura.setVisible(targetAlpha > 0);
+      if (targetAlpha <= 0) {
+        this.riverMagicAura.destroy();
+        this.riverMagicAura = undefined;
+        this.riverMagicShapes = [];
+      }
+      return;
+    }
+
+    this.riverMagicAura.setVisible(true);
+    this.tweens.add({
+      targets: this.riverMagicAura,
+      alpha: targetAlpha,
+      duration: targetAlpha > 0 ? 760 : 520,
+      ease: "Sine.easeInOut",
+      onComplete: () => {
+        if (targetAlpha > 0 || !this.riverMagicAura) return;
+        this.riverMagicAura.destroy();
+        this.riverMagicAura = undefined;
+        this.riverMagicShapes = [];
+      }
+    });
+  }
+
+  private createRiverMagicAura() {
+    const aura = this.add.container(480, 450).setDepth(31.86).setAlpha(0);
+    const shapes: Phaser.GameObjects.Shape[] = [];
+
+    const addShape = (shape: Phaser.GameObjects.Shape, kind: string, phase: number, baseAlpha: number) => {
+      shape
+        .setData("kind", kind)
+        .setData("phase", phase)
+        .setData("baseAlpha", baseAlpha)
+        .setData("baseX", shape.x)
+        .setData("baseY", shape.y);
+      aura.add(shape);
+      shapes.push(shape);
+      return shape;
+    };
+
+    addShape(
+      this.add.ellipse(0, 24, 590, 138, 0xc8fff4, 0.34).setBlendMode(Phaser.BlendModes.SCREEN),
+      "pool",
+      0,
+      0.34
+    );
+    addShape(
+      this.add.ellipse(0, 2, 470, 94, 0xfff2dc, 0.3).setBlendMode(Phaser.BlendModes.SCREEN),
+      "pool",
+      1.2,
+      0.3
+    );
+    addShape(
+      this.add.ellipse(0, -42, 680, 210, 0xe7d6ff, 0.2).setBlendMode(Phaser.BlendModes.SCREEN),
+      "halo",
+      0.6,
+      0.2
+    );
+    addShape(
+      this.add.ellipse(0, -58, 560, 150, 0xffd1e3, 0.18).setBlendMode(Phaser.BlendModes.SCREEN),
+      "halo",
+      1.8,
+      0.18
+    );
+    addShape(
+      this.add.ellipse(0, -84, 620, 190, 0xffdff5, 0.16),
+      "halo",
+      2.15,
+      0.16
+    );
+    addShape(
+      this.add.ellipse(0, -18, 660, 150, 0xd7fff7, 0.12),
+      "halo",
+      2.35,
+      0.12
+    );
+    addShape(
+      this.add.ellipse(0, -154, 500, 112, 0xfff2dc, 0.2).setBlendMode(Phaser.BlendModes.SCREEN),
+      "halo",
+      2.5,
+      0.2
+    );
+    addShape(
+      this.add.ellipse(0, -174, 390, 74, 0xc8fff4, 0.18).setBlendMode(Phaser.BlendModes.SCREEN),
+      "halo",
+      3.1,
+      0.18
+    );
+
+    for (let i = 0; i < 5; i += 1) {
+      addShape(
+        this.add
+          .ellipse(0, 8, 260 + i * 58, 40 + i * 16, 0xffffff, 0)
+          .setStrokeStyle(2, i % 2 === 0 ? 0xc8fff4 : 0xffd1e3, 0.56)
+          .setBlendMode(Phaser.BlendModes.SCREEN),
+        "ring",
+        i * 0.9,
+        0.62 - i * 0.04
+      );
+    }
+
+    for (let i = 0; i < 30; i += 1) {
+      const angle = (Math.PI * 2 * i) / 30;
+      const radiusX = 218 + (i % 5) * 20;
+      const radiusY = 42 + (i % 3) * 8;
+      const direction = Math.cos(angle) < 0 ? 1 : -1;
+      const star = addShape(
+        this.createRiverSparkleStar(Math.cos(angle) * radiusX, 8 + Math.sin(angle) * radiusY),
+        "kissStar",
+        i * 0.073,
+        0.95
+      );
+      star.setData("drift", direction * (68 + (i % 6) * 12));
+      star.setData("rise", 54 + (i % 5) * 13);
+    }
+
+    const ribbonColors = [0xfff2dc, 0xc8fff4, 0xffd1e3, 0xe7d6ff];
+    for (let i = 0; i < 9; i += 1) {
+      addShape(
+        this.add
+          .rectangle(-220 + i * 55, -54 + (i % 5) * 18, 170 + (i % 4) * 66, 5 + (i % 2), ribbonColors[i % ribbonColors.length], 0)
+          .setAngle(-8 + i * 2.25)
+          .setBlendMode(Phaser.BlendModes.SCREEN),
+        "ribbon",
+        i * 0.52,
+        0.34 + (i % 3) * 0.035
+      );
+    }
+
+    for (let i = 0; i < 7; i += 1) {
+      addShape(
+        this.add
+          .rectangle(-180 + i * 60, 18, 8 + (i % 3) * 3, 94 + (i % 2) * 28, i % 2 === 0 ? 0xc8fff4 : 0xffe2f0, 0)
+          .setOrigin(0.5, 1)
+          .setAngle(-10 + i * 3.5)
+          .setBlendMode(Phaser.BlendModes.SCREEN),
+        "beam",
+        i * 0.7,
+        0.38
+      );
+    }
+
+    const moteColors = [0xfff2dc, 0xc8fff4, 0xffd1e3, 0xe7d6ff, 0xffffff];
+    for (let i = 0; i < 42; i += 1) {
+      const angle = (Math.PI * 2 * i) / 42;
+      const radius = 126 + (i % 7) * 25;
+      addShape(
+        this.add
+          .ellipse(
+            Math.cos(angle) * radius,
+            -16 + Math.sin(angle) * 48,
+            4 + (i % 4),
+            4 + (i % 4),
+            moteColors[i % moteColors.length],
+            0
+          )
+          .setBlendMode(Phaser.BlendModes.SCREEN),
+        "mote",
+        i * 0.48,
+        0.78
+      );
+    }
+
     for (let i = 0; i < 16; i += 1) {
-      const startX = 120 + Math.random() * 720;
-      const startY = 520 + Math.random() * 60;
-      const colorHex = i % 3 === 0 ? "#ff7aa8" : i % 3 === 1 ? "#ffd1e3" : "#c79bff";
-      const petal = this.add
-        .text(startX, startY, glyphs[i % glyphs.length], {
-          fontFamily: "Courier New",
-          fontSize: `${14 + (i % 4) * 4}px`,
-          color: colorHex
-        })
+      const side = i % 2 === 0 ? -1 : 1;
+      const lane = Math.floor(i / 2);
+      addShape(
+        this.add
+          .polygon(
+            side * (150 + (lane % 4) * 38),
+            -80 + (lane % 5) * 33,
+            [0, -9, 6, 0, 0, 9, -6, 0],
+            i % 3 === 0 ? 0xfff2dc : i % 3 === 1 ? 0xc8fff4 : 0xffd1e3,
+            0
+          )
+          .setBlendMode(Phaser.BlendModes.SCREEN),
+        "glint",
+        i * 0.41,
+        0.95
+      );
+    }
+
+    for (let i = 0; i < 18; i += 1) {
+      const arc = (Math.PI * i) / 17;
+      addShape(
+        this.add
+          .polygon(
+            Math.cos(arc) * 250,
+            -138 - Math.sin(arc) * 48,
+            [0, -8, 5, 0, 0, 8, -5, 0],
+            moteColors[i % moteColors.length],
+            0
+          )
+          .setBlendMode(Phaser.BlendModes.SCREEN),
+        "glint",
+        2.2 + i * 0.33,
+        0.88
+      );
+    }
+
+    this.uiCamera?.ignore(aura);
+    this.riverMagicAura = aura;
+    this.riverMagicShapes = shapes;
+  }
+
+  private updateRiverMagic(seconds: number) {
+    if (!this.riverMagicAura || this.riverMagicAura.alpha <= 0.001) return;
+
+    this.riverMagicAura.setY(450 + Math.sin(seconds * 1.1) * 3.2);
+    this.riverMagicAura.setScale(1 + Math.sin(seconds * 0.72) * 0.018);
+
+    for (const shape of this.riverMagicShapes) {
+      const kind = shape.getData("kind") as string;
+      const phase = shape.getData("phase") as number;
+      const baseAlpha = shape.getData("baseAlpha") as number;
+      const baseX = shape.getData("baseX") as number;
+      const baseY = shape.getData("baseY") as number;
+      const pulse = Math.sin(seconds * 1.9 + phase);
+
+      if (kind === "pool") {
+        shape.setAlpha(baseAlpha * (0.74 + pulse * 0.22));
+        shape.setScale(1 + Math.sin(seconds * 0.85 + phase) * 0.035, 1 + Math.cos(seconds * 0.7 + phase) * 0.055);
+      } else if (kind === "halo") {
+        const wave = (Math.sin(seconds * 0.72 + phase) + 1) * 0.5;
+        shape.setAlpha(baseAlpha * (0.62 + wave * 0.58));
+        shape.setScale(0.96 + wave * 0.08, 0.92 + wave * 0.16);
+      } else if (kind === "ring") {
+        const wave = (Math.sin(seconds * 1.35 + phase) + 1) * 0.5;
+        shape.setAlpha(baseAlpha * (0.35 + wave * 0.65));
+        shape.setScale(0.92 + wave * 0.18, 0.9 + wave * 0.22);
+        shape.setRotation(Math.sin(seconds * 0.45 + phase) * 0.018);
+      } else if (kind === "kissStar") {
+        const kissAlpha = Phaser.Math.Clamp((this.riverMagicAura.alpha - 0.86) / 0.14, 0, 1);
+        const progress = (seconds * 0.22 + phase) % 1;
+        const glow = Math.sin(progress * Math.PI);
+        const drift = shape.getData("drift") as number;
+        const rise = shape.getData("rise") as number;
+        const twinkle = (Math.sin(seconds * 3.2 + phase * 42) + 1) * 0.5;
+        shape.setAlpha(Phaser.Math.Clamp(baseAlpha * kissAlpha * glow * twinkle, 0, 0.95));
+        shape.setPosition(
+          baseX + drift * progress + Math.sin(seconds * 1.2 + phase * 8) * 8,
+          baseY - rise * progress + Math.cos(seconds * 1.35 + phase * 7) * 5
+        );
+        shape.setRotation(seconds * 0.8 + phase * 8);
+        shape.setScale(0.9 + glow * 0.18);
+      } else if (kind === "ribbon") {
+        const wave = (Math.sin(seconds * 1.05 + phase) + 1) * 0.5;
+        shape.setAlpha(baseAlpha * (0.3 + wave * 0.82));
+        shape.setPosition(
+          baseX + Math.sin(seconds * 0.52 + phase) * 18,
+          baseY + Math.cos(seconds * 0.6 + phase) * 4
+        );
+        shape.setScale(0.82 + wave * 0.28, 1);
+      } else if (kind === "beam") {
+        shape.setAlpha(baseAlpha * (0.55 + Math.max(0, pulse) * 0.65));
+        shape.setY(baseY - Math.max(0, pulse) * 12);
+        shape.setScale(1, 0.86 + Math.max(0, pulse) * 0.38);
+      } else if (kind === "glint") {
+        const twinkle = (Math.sin(seconds * 2.8 + phase) + 1) * 0.5;
+        shape.setAlpha(baseAlpha * (0.12 + twinkle * 0.9));
+        shape.setPosition(
+          baseX + Math.sin(seconds * 0.74 + phase) * 10,
+          baseY + Math.cos(seconds * 0.92 + phase) * 10
+        );
+        shape.setRotation(seconds * 0.42 + phase);
+        shape.setScale(0.55 + twinkle * 0.82);
+      } else {
+        shape.setAlpha(baseAlpha * (0.42 + Math.sin(seconds * 2.2 + phase) * 0.35));
+        shape.setPosition(
+          baseX + Math.sin(seconds * 0.9 + phase) * 12,
+          baseY + Math.cos(seconds * 1.15 + phase) * 8
+        );
+        shape.setScale(0.82 + Math.sin(seconds * 1.7 + phase) * 0.22);
+      }
+    }
+  }
+
+  private createRiverSparkleStar(x: number, y: number) {
+    const size = 3;
+    return this.add.star(x, y, 4, size * 0.5, size * 1.4, 0xeaf6ff, 0.95).setStrokeStyle(1, 0x9fdcff, 0.7).setAlpha(0);
+  }
+
+  // A restrained bloom of light rising from below. Used on the kiss beat so
+  // the magic feels soft and cinematic instead of noisy.
+  private spawnPetals() {
+    const bottomGlow = this.add
+      .ellipse(480, 548, 720, 92, 0xffc6df, 0)
+      .setDepth(92)
+      .setScrollFactor(0)
+      .setBlendMode(Phaser.BlendModes.SCREEN);
+    this.cameras.main.ignore(bottomGlow);
+
+    this.tweens.add({
+      targets: bottomGlow,
+      alpha: { from: 0, to: 0.24 },
+      scaleX: 1.12,
+      scaleY: 1.22,
+      yoyo: true,
+      duration: 1700,
+      ease: "Sine.easeInOut",
+      onComplete: () => bottomGlow.destroy()
+    });
+
+    const beamColors = [0xfff2dc, 0xffd7e8, 0xd7fff7];
+    for (let i = 0; i < 5; i += 1) {
+      const beam = this.add
+        .rectangle(288 + i * 96, 566, 8 + (i % 2) * 4, 170 + (i % 3) * 22, beamColors[i % beamColors.length], 0)
+        .setOrigin(0.5, 1)
+        .setDepth(92)
+        .setAngle(-10 + i * 5)
+        .setScrollFactor(0)
+        .setBlendMode(Phaser.BlendModes.SCREEN);
+      this.cameras.main.ignore(beam);
+
+      this.tweens.add({
+        targets: beam,
+        alpha: { from: 0, to: 0.12 },
+        y: 438 - (i % 3) * 12,
+        scaleY: 1.18,
+        delay: i * 72,
+        yoyo: true,
+        duration: 1500 + (i % 3) * 150,
+        ease: "Sine.easeInOut",
+        onComplete: () => beam.destroy()
+      });
+    }
+
+    const moteColors = [0xffd1e3, 0xc8fff4, 0xfff2dc, 0xe7d6ff];
+    for (let i = 0; i < 24; i += 1) {
+      const startX = 170 + Math.random() * 620;
+      const startY = 548 + Math.random() * 58;
+      const size = 3 + Math.random() * 6;
+      const mote = this.add
+        .ellipse(startX, startY, size, size, moteColors[i % moteColors.length], 0)
         .setOrigin(0.5)
         .setDepth(93)
         .setScrollFactor(0)
-        .setAlpha(0);
-      this.cameras.main.ignore(petal);
+        .setBlendMode(Phaser.BlendModes.SCREEN);
+      this.cameras.main.ignore(mote);
 
-      const rise = 240 + Math.random() * 170;
-      const sway = (Math.random() < 0.5 ? -1 : 1) * (30 + Math.random() * 44);
+      const rise = 150 + Math.random() * 170;
+      const sway = (Math.random() < 0.5 ? -1 : 1) * (18 + Math.random() * 46);
       this.tweens.add({
-        targets: petal,
+        targets: mote,
         y: startY - rise,
         x: startX + sway,
-        alpha: { from: 0, to: 0.9 },
-        angle: sway > 0 ? 42 : -42,
-        delay: i * 80,
-        duration: 2600 + Math.random() * 1300,
+        alpha: { from: 0, to: 0.42 },
+        scale: 0.65 + Math.random() * 0.7,
+        delay: i * 56,
+        duration: 1900 + Math.random() * 900,
         ease: "Sine.easeOut",
         onComplete: () => {
           this.tweens.add({
-            targets: petal,
+            targets: mote,
             alpha: 0,
-            duration: 600,
+            scale: 0.2,
+            duration: 620,
             ease: "Sine.easeIn",
-            onComplete: () => petal.destroy()
+            onComplete: () => mote.destroy()
           });
         }
       });
@@ -1472,7 +1875,7 @@ export class StoryScene extends Phaser.Scene {
       this.ambience.playMagicShiftSound();
     }
     const veil = this.add
-      .rectangle(0, 0, 960, 540, 0xe7d6ff, 0)
+      .rectangle(0, 0, 960, 540, 0xfff2dc, 0)
       .setOrigin(0)
       .setDepth(76)
       .setScrollFactor(0)
@@ -1481,48 +1884,305 @@ export class StoryScene extends Phaser.Scene {
 
     this.tweens.add({
       targets: veil,
-      alpha: { from: 0, to: 0.2 },
+      alpha: { from: 0, to: 0.28 },
       yoyo: true,
-      duration: 620,
+      duration: 760,
       ease: "Sine.easeInOut",
       onComplete: () => veil.destroy()
     });
 
-    const sparkles = Array.from({ length: 18 }, (_, index) => {
-      const angle = (Math.PI * 2 * index) / 18;
-      const radius = 90 + (index % 5) * 32;
-      const x = 480 + Math.cos(angle) * radius;
-      const y = 258 + Math.sin(angle) * (radius * 0.42);
-      const sparkle = this.add
-        .text(x, y, index % 3 === 0 ? "+" : "*", {
-          fontFamily: "Courier New",
-          fontSize: `${12 + (index % 4) * 3}px`,
-          fontStyle: "bold",
-          color: index % 2 === 0 ? "#d8fbff" : "#e7d6ff",
-          stroke: "#2a1638",
-          strokeThickness: 2
-        })
-        .setOrigin(0.5)
-        .setDepth(77)
-        .setAlpha(0)
-        .setScrollFactor(0);
-      this.cameras.main.ignore(sparkle);
-      return sparkle;
+    const blushVeil = this.add
+      .rectangle(0, 0, 960, 540, 0xff8fbd, 0)
+      .setOrigin(0)
+      .setDepth(77)
+      .setScrollFactor(0)
+      .setBlendMode(Phaser.BlendModes.SCREEN);
+    this.cameras.main.ignore(blushVeil);
+
+    this.tweens.add({
+      targets: blushVeil,
+      alpha: { from: 0, to: 0.12 },
+      yoyo: true,
+      delay: 110,
+      duration: 900,
+      ease: "Sine.easeInOut",
+      onComplete: () => blushVeil.destroy()
     });
 
-    sparkles.forEach((sparkle, index) => {
+    this.playKissMiraclePulse();
+  }
+
+  private playKissMiraclePulse() {
+    const pulse = this.add.container(480, 454).setDepth(31.86).setAlpha(0);
+    const colors = [0xfff2dc, 0xc8fff4, 0xffd1e3, 0xe7d6ff];
+
+    const glow = this.add.ellipse(0, 12, 560, 138, 0xfff2dc, 0.18).setBlendMode(Phaser.BlendModes.SCREEN);
+    const blush = this.add.ellipse(0, -22, 430, 112, 0xffb8d7, 0.14).setBlendMode(Phaser.BlendModes.SCREEN);
+    const cyan = this.add.ellipse(0, 32, 610, 96, 0xc8fff4, 0.16).setBlendMode(Phaser.BlendModes.SCREEN);
+    pulse.add([glow, blush, cyan]);
+
+    for (let i = 0; i < 5; i += 1) {
+      const ring = this.add
+        .ellipse(0, 10 - i * 7, 220 + i * 70, 36 + i * 16, 0xffffff, 0)
+        .setStrokeStyle(2, colors[i % colors.length], 0.58 - i * 0.055)
+        .setBlendMode(Phaser.BlendModes.SCREEN);
+      pulse.add(ring);
       this.tweens.add({
-        targets: sparkle,
-        alpha: { from: 0, to: 0.85 },
-        x: sparkle.x + Math.sin(index * 1.7) * 22,
-        y: sparkle.y - 20 - (index % 4) * 6,
-        scale: 1.18,
-        delay: index * 18,
-        yoyo: true,
-        duration: 760,
-        ease: "Sine.easeInOut",
-        onComplete: () => sparkle.destroy()
+        targets: ring,
+        alpha: { from: 0.46, to: 0 },
+        scaleX: 1.65 + i * 0.18,
+        scaleY: 1.55 + i * 0.16,
+        delay: i * 95,
+        duration: 1350 + i * 120,
+        ease: "Sine.easeOut"
       });
+    }
+
+    for (let i = 0; i < 10; i += 1) {
+      const ribbon = this.add
+        .rectangle(-240 + i * 54, -72 + (i % 5) * 24, 160 + (i % 4) * 48, 5, colors[i % colors.length], 0.24)
+        .setAngle(-10 + i * 2.2)
+        .setBlendMode(Phaser.BlendModes.SCREEN);
+      pulse.add(ribbon);
+      this.tweens.add({
+        targets: ribbon,
+        x: ribbon.x + Math.sin(i * 1.4) * 34,
+        alpha: { from: 0, to: 0.34 },
+        scaleX: 1.24,
+        delay: 80 + i * 36,
+        yoyo: true,
+        duration: 1180 + (i % 4) * 110,
+        ease: "Sine.easeInOut"
+      });
+    }
+
+    for (let i = 0; i < 34; i += 1) {
+      const angle = (Math.PI * 2 * i) / 34;
+      const radius = 118 + (i % 6) * 26;
+      const spark = this.add
+        .polygon(
+          Math.cos(angle) * radius,
+          -22 + Math.sin(angle) * 56,
+          [0, -7, 5, 0, 0, 7, -5, 0],
+          colors[i % colors.length],
+          0
+        )
+        .setBlendMode(Phaser.BlendModes.SCREEN);
+      pulse.add(spark);
+      this.tweens.add({
+        targets: spark,
+        x: spark.x + Math.cos(angle) * (24 + (i % 4) * 8),
+        y: spark.y - 34 - (i % 5) * 10,
+        alpha: { from: 0, to: 0.72 },
+        scale: 0.82 + (i % 4) * 0.16,
+        rotation: angle + 0.9,
+        delay: i * 22,
+        yoyo: true,
+        duration: 1080 + (i % 5) * 120,
+        ease: "Sine.easeInOut"
+      });
+    }
+
+    for (let i = 0; i < 30; i += 1) {
+      const angle = (Math.PI * 2 * i) / 30;
+      const radiusX = 220 + (i % 6) * 18;
+      const radiusY = 42 + (i % 4) * 8;
+      const startX = Math.cos(angle) * radiusX;
+      const startY = 10 + Math.sin(angle) * radiusY;
+      const star = this.createRiverSparkleStar(startX, startY);
+      pulse.add(star);
+      this.tweens.add({
+        targets: star,
+        x: startX + 86 + (i % 5) * 16,
+        y: startY - 76 - (i % 6) * 10,
+        alpha: { from: 0, to: 0.8 },
+        scale: 1.05,
+        rotation: angle + 0.8,
+        delay: 120 + i * 28,
+        yoyo: true,
+        duration: 1250 + (i % 5) * 110,
+        ease: "Sine.easeInOut"
+      });
+    }
+
+    this.uiCamera?.ignore(pulse);
+    this.tweens.add({
+      targets: pulse,
+      alpha: { from: 0, to: 1 },
+      y: 438,
+      yoyo: true,
+      hold: 360,
+      duration: 1560,
+      ease: "Sine.easeInOut",
+      onComplete: () => pulse.destroy()
+    });
+    this.tweens.add({
+      targets: [glow, blush, cyan],
+      scaleX: 1.18,
+      scaleY: 1.28,
+      duration: 1700,
+      ease: "Sine.easeOut"
+    });
+  }
+
+  private playKissBackdropDissolve() {
+    this.playRiverLiftBurst();
+
+    const warmExposure = this.add
+      .rectangle(0, 0, 960, 540, 0xffefd0, 0)
+      .setOrigin(0)
+      .setDepth(75)
+      .setScrollFactor(0)
+      .setBlendMode(Phaser.BlendModes.SCREEN);
+    this.cameras.main.ignore(warmExposure);
+
+    this.tweens.add({
+      targets: warmExposure,
+      alpha: { from: 0, to: 0.2 },
+      yoyo: true,
+      hold: 260,
+      duration: 980,
+      ease: "Sine.easeInOut",
+      onComplete: () => warmExposure.destroy()
+    });
+
+    const horizonBloom = this.add
+      .ellipse(480, 330, 820, 210, 0xfff7df, 0)
+      .setDepth(76)
+      .setScrollFactor(0)
+      .setBlendMode(Phaser.BlendModes.SCREEN);
+    this.cameras.main.ignore(horizonBloom);
+
+    this.tweens.add({
+      targets: horizonBloom,
+      alpha: { from: 0, to: 0.28 },
+      scaleX: 1.18,
+      scaleY: 1.36,
+      y: 286,
+      yoyo: true,
+      hold: 180,
+      duration: 1180,
+      ease: "Sine.easeInOut",
+      onComplete: () => horizonBloom.destroy()
+    });
+
+    const riverGleam = this.add
+      .rectangle(0, 365, 960, 74, 0xc8fff4, 0)
+      .setOrigin(0)
+      .setDepth(76)
+      .setScrollFactor(0)
+      .setBlendMode(Phaser.BlendModes.SCREEN);
+    this.cameras.main.ignore(riverGleam);
+
+    this.tweens.add({
+      targets: riverGleam,
+      alpha: { from: 0, to: 0.16 },
+      scaleY: 1.55,
+      y: 342,
+      yoyo: true,
+      delay: 120,
+      duration: 1060,
+      ease: "Sine.easeInOut",
+      onComplete: () => riverGleam.destroy()
+    });
+  }
+
+  private playRiverLiftBurst() {
+    const burst = this.add.container(480, 446).setDepth(31.7).setAlpha(0);
+    const floor = this.add.ellipse(0, 18, 500, 88, 0xc8fff4, 0.3).setBlendMode(Phaser.BlendModes.SCREEN);
+    const goldFloor = this.add.ellipse(0, 2, 410, 58, 0xfff2dc, 0.24).setBlendMode(Phaser.BlendModes.SCREEN);
+    const ringColors = [0xc8fff4, 0xffd1e3, 0xfff2dc, 0xe7d6ff];
+    const rings = ringColors.map((color, index) =>
+      this.add
+        .ellipse(0, 8 - index * 5, 220 + index * 54, 34 + index * 12, 0xffffff, 0)
+        .setStrokeStyle(2, color, 0.82 - index * 0.09)
+        .setBlendMode(Phaser.BlendModes.SCREEN)
+    );
+
+    burst.add([floor, goldFloor, ...rings]);
+
+    for (let i = 0; i < 8; i += 1) {
+      const beam = this.add
+        .rectangle(-210 + i * 60, 24, 9 + (i % 3) * 3, 120 + (i % 4) * 22, ringColors[i % ringColors.length], 0)
+        .setOrigin(0.5, 1)
+        .setAngle(-12 + i * 3.4)
+        .setBlendMode(Phaser.BlendModes.SCREEN);
+      burst.add(beam);
+      this.tweens.add({
+        targets: beam,
+        y: -66 - (i % 4) * 12,
+        alpha: { from: 0, to: 0.34 },
+        scaleY: 1.24,
+        delay: i * 44,
+        yoyo: true,
+        duration: 1260 + (i % 3) * 130,
+        ease: "Sine.easeInOut"
+      });
+    }
+
+    for (let i = 0; i < 36; i += 1) {
+      const angle = (Math.PI * 2 * i) / 36;
+      const spark = this.add
+        .ellipse(
+          Math.cos(angle) * (128 + (i % 5) * 10),
+          Math.sin(angle) * 30,
+          4 + (i % 4) * 1.5,
+          4 + (i % 4) * 1.5,
+          ringColors[i % ringColors.length],
+          0
+        )
+        .setBlendMode(Phaser.BlendModes.SCREEN);
+      spark.setData("angle", angle);
+      burst.add(spark);
+
+      this.tweens.add({
+        targets: spark,
+        x: Math.cos(angle) * (210 + (i % 6) * 18),
+        y: Math.sin(angle) * (48 + (i % 4) * 12) - 92 - (i % 5) * 9,
+        alpha: { from: 0, to: 0.72 },
+        scale: 1.36,
+        delay: i * 16,
+        yoyo: true,
+        duration: 1040 + (i % 5) * 80,
+        ease: "Sine.easeOut"
+      });
+    }
+
+    this.uiCamera?.ignore(burst);
+
+    this.tweens.add({
+      targets: burst,
+      alpha: { from: 0, to: 1 },
+      y: 430,
+      yoyo: true,
+      hold: 260,
+      duration: 1180,
+      ease: "Sine.easeInOut",
+      onComplete: () => burst.destroy()
+    });
+    this.tweens.add({
+      targets: floor,
+      scaleX: 1.34,
+      scaleY: 1.5,
+      alpha: 0,
+      duration: 1280,
+      ease: "Sine.easeOut"
+    });
+    this.tweens.add({
+      targets: goldFloor,
+      scaleX: 1.46,
+      scaleY: 1.3,
+      alpha: 0,
+      duration: 1220,
+      ease: "Sine.easeOut"
+    });
+    this.tweens.add({
+      targets: rings,
+      scaleX: 2.65,
+      scaleY: 2.2,
+      alpha: 0,
+      duration: 1280,
+      ease: "Sine.easeOut"
     });
   }
 
@@ -1542,8 +2202,11 @@ export class StoryScene extends Phaser.Scene {
       const alpha = propData.alpha ?? 1;
       const scale = propData.scale ?? 0.46;
       const previous = previousProps[index];
+      const previousTexture = previous
+        ? ((previous.getData("propTexture") as string | undefined) ?? previous.texture.key)
+        : undefined;
 
-      if (previous?.texture.key === texture) {
+      if (previous && previousTexture && (previousTexture === texture || this.isSameWalkingCycle(previousTexture, texture))) {
         this.tweens.killTweensOf(previous);
         previous
           .setDepth(propData.depth ?? 31)
@@ -1551,6 +2214,7 @@ export class StoryScene extends Phaser.Scene {
           .setTexture(texture);
         previous.setData("baseY", propData.y);
         previous.setData("float", propData.float ?? 0);
+        this.configureScenePropAnimation(previous, texture, index);
         nextProps.push(previous);
 
         if (immediate) {
@@ -1570,32 +2234,55 @@ export class StoryScene extends Phaser.Scene {
         return;
       }
 
-      const softSwap = previous && this.shouldSoftSwapSceneProp(previous.texture.key, texture);
+      const kissBackdropShift = Boolean(previousTexture && this.isKissBackdropShift(previousTexture, texture));
+      const softSwap = Boolean(previous && previousTexture && this.shouldSoftSwapSceneProp(previousTexture, texture));
+      const startX = softSwap && previous ? previous.x : propData.x;
+      const startY = softSwap && previous ? previous.y : propData.y;
+      const startScale =
+        kissBackdropShift && previous ? previous.scaleX * 1.035 : softSwap && previous ? previous.scaleX : scale;
       const prop = this.add
-        .image(softSwap ? previous.x : propData.x, softSwap ? previous.y : propData.y, texture)
+        .image(startX, startY, texture)
         .setOrigin(0.5, 1)
         .setDepth(propData.depth ?? 31)
-        .setScale(softSwap ? previous.scaleX : scale)
+        .setScale(startScale)
         .setAlpha(immediate ? alpha : 0)
         .setFlipX(propData.flipX ?? false);
 
+      if (kissBackdropShift) {
+        prop.setY(prop.y + 10);
+      }
       prop.setData("baseY", propData.y);
       prop.setData("float", propData.float ?? 0);
+      this.configureScenePropAnimation(prop, texture, index);
       this.uiCamera?.ignore(prop);
       nextProps.push(prop);
 
       if (!immediate) {
-        const duration = softSwap ? 620 : 300;
-        if (softSwap) {
+        const duration = kissBackdropShift ? 1580 : softSwap ? 620 : 300;
+        if (softSwap && previous) {
           fadingProps.add(previous);
           this.tweens.killTweensOf(previous);
-          this.tweens.add({
-            targets: previous,
-            alpha: 0,
-            duration,
-            ease: "Sine.easeInOut",
-            onComplete: () => previous.destroy()
-          });
+          if (kissBackdropShift) {
+            this.playKissBackdropDissolve();
+            this.tweens.add({
+              targets: previous,
+              alpha: 0,
+              y: previous.y - 8,
+              scaleX: previous.scaleX * 1.045,
+              scaleY: previous.scaleY * 1.045,
+              duration,
+              ease: "Sine.easeInOut",
+              onComplete: () => previous.destroy()
+            });
+          } else {
+            this.tweens.add({
+              targets: previous,
+              alpha: 0,
+              duration,
+              ease: "Sine.easeInOut",
+              onComplete: () => previous.destroy()
+            });
+          }
         }
         this.tweens.add({
           targets: prop,
@@ -1640,6 +2327,59 @@ export class StoryScene extends Phaser.Scene {
 
   private isKissFrameTexture(texture: string) {
     return texture.startsWith("couple-almost-kiss-") || texture === "couple-kiss-sitting";
+  }
+
+  private configureScenePropAnimation(prop: Phaser.GameObjects.Image, texture: string, index: number) {
+    prop.setData("propTexture", texture);
+
+    const frames = this.scenePropAnimationFrames(texture).filter((frame) => this.textures.exists(frame));
+    if (frames.length <= 1) {
+      prop.setData("animationFrames", undefined);
+      prop.setData("animationFrameRate", undefined);
+      prop.setData("animationPhase", undefined);
+      return;
+    }
+
+    prop.setData("animationFrames", frames);
+    prop.setData("animationFrameRate", 1.8);
+    prop.setData("animationPhase", index * 0.45);
+  }
+
+  private scenePropAnimationFrames(texture: string) {
+    const family = this.scenePropAnimationFamily(texture);
+    if (family === "walking-side") {
+      return [
+        "couple-walking-side-01",
+        "couple-walking-side-02",
+        "couple-walking-side-03",
+        "couple-walking-side-04"
+      ];
+    }
+    if (family === "walking-back") {
+      return [
+        "couple-walking-back-01",
+        "couple-walking-back-02",
+        "couple-walking-back-03",
+        "couple-walking-back-04"
+      ];
+    }
+
+    return [];
+  }
+
+  private isSameWalkingCycle(previousTexture: string, nextTexture: string) {
+    const previousFamily = this.scenePropAnimationFamily(previousTexture);
+    return Boolean(previousFamily && previousFamily === this.scenePropAnimationFamily(nextTexture));
+  }
+
+  private scenePropAnimationFamily(texture: string) {
+    if (texture.startsWith("couple-walking-side-")) return "walking-side";
+    if (texture === "couple-walking-back" || texture.startsWith("couple-walking-back-")) return "walking-back";
+    return undefined;
+  }
+
+  private isKissBackdropShift(previousTexture: string, nextTexture: string) {
+    return previousTexture === "scene-river-picnic-spot" && nextTexture === "scene-river-close-faces";
   }
 
   private resolveScenePropTexture(texture: string) {
@@ -1700,6 +2440,7 @@ export class StoryScene extends Phaser.Scene {
     const newMusic = new Audio(url);
     newMusic.loop = true;
     newMusic.volume = 0;
+    registerGameAudioElement(newMusic);
     this.backgroundMusicElements.add(newMusic);
     this.ambience.connectExternalMusic(newMusic, location);
 
@@ -1968,6 +2709,7 @@ export class StoryScene extends Phaser.Scene {
   }
 
   private tryToggleGuides(pointer: Phaser.Input.Pointer) {
+    if (!this.guideToggle.visible || this.guideToggle.alpha < 0.2) return false;
     const bounds = this.guideToggle.getBounds();
     if (!bounds.contains(pointer.x, pointer.y)) return false;
 
@@ -1976,6 +2718,7 @@ export class StoryScene extends Phaser.Scene {
   }
 
   private tryToggleAudio(pointer: Phaser.Input.Pointer) {
+    if (!this.audioToggle.visible || this.audioToggle.alpha < 0.2) return false;
     const bounds = this.audioToggle.getBounds();
     if (!bounds.contains(pointer.x, pointer.y)) return false;
 
@@ -2028,6 +2771,7 @@ export class StoryScene extends Phaser.Scene {
     music.removeAttribute("src");
     music.load();
     this.backgroundMusicElements.delete(music);
+    unregisterGameAudioElement(music);
   }
 
   private shutdownAudioLifecycle() {
@@ -2038,15 +2782,16 @@ export class StoryScene extends Phaser.Scene {
   private forceDisableAudio() {
     this.audioEnabled = false;
     this.audioToggle?.setText("audio: off");
-    this.stopAllAudioNow(false);
+    this.stopAllAudioNow();
   }
 
   private toggleGuides() {
     this.guidesVisible = !this.guidesVisible;
+    const hideHud = this.shouldHideHud(this.currentBeat());
     this.guideToggle.setText(`guias: ${this.guidesVisible ? "on" : "off"}`);
-    this.locationText.setVisible(this.guidesVisible);
-    this.scoreText.setVisible(this.guidesVisible);
-    this.memoryCounterText.setVisible(this.guidesVisible);
+    this.locationText.setVisible(this.guidesVisible && !hideHud);
+    this.scoreText.setVisible(this.guidesVisible && !hideHud);
+    this.memoryCounterText.setVisible(this.guidesVisible && !hideHud);
   }
 
   private setSpeaker(speaker: StoryBeat["speaker"], immediate = false) {
@@ -2057,7 +2802,7 @@ export class StoryScene extends Phaser.Scene {
 
     const accentColor = speakerAccentHex[speaker] ?? 0x697383;
     this.dialogueAccent.setFillStyle(accentColor, 0.95);
-    this.dialogueBg.setStrokeStyle(3, accentColor, 0.7);
+    this.dialogueBg.setStrokeStyle(2, accentColor, 0.7);
 
     if (immediate || !changed) return;
 
