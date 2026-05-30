@@ -2,12 +2,18 @@
 
 Put background music files here.
 
-The story scene automatically looks for:
+The story scene uses location-specific chapter 1 ambience/music files:
 
-- `chapter-1.mp3` or `chapter-1.ogg`
-- `chapter-2.mp3` or `chapter-2.ogg`
-- `chapter-3.mp3` or `chapter-3.ogg`
-- `chapter-4.mp3` or `chapter-4.ogg`
+- `chapter-1-taxi.mp3`
+- `chapter-1-hospital.mp3`
+- `chapter-1-road.mp3`
+- `chapter-1-bosquete.mp3`
+- `chapter-1-valley.mp3`
+- `chapter-1-ravine.mp3`
+- `chapter-1-river.mp3`
+
+`chapter-1.wav` remains available as a fallback for locations without a
+specific track, and `swordsman.mp3` is the persistent background underscore.
 
 Recommended style for chapter 1:
 

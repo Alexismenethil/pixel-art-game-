@@ -81,10 +81,14 @@ export type StoryBeat = {
     chromatic?: boolean;
     slowmo?: number;
     magicShift?: boolean;
+    riverMagic?: number;
+    godrays?: number;
+    petals?: boolean;
     locationCard?: { title: string; subtitle?: string };
     whisper?: string;
     holdMs?: number;
     hideDialogue?: boolean;
+    hideHud?: boolean;
     persistDialogue?: boolean;
     lockInput?: boolean;
   };
@@ -122,33 +126,38 @@ export type Chapter = {
   beats: StoryBeat[];
 };
 
+export const currentDeployChapterIds: readonly ChapterId[] = ["chapter-1"];
+
+export function isChapterAvailableInCurrentDeploy(chapterId: ChapterId) {
+  return currentDeployChapterIds.includes(chapterId);
+}
+
 export const chapters: Chapter[] = [
   {
     id: "chapter-1",
     number: 1,
-    title: "Donde el rio nos vio",
-    route: "Taxi > Hospital > Valle > Rio",
-    lockedTeaser: "Empieza aqui.",
+    title: "Donde el río nos vio",
+    route: "Taxi > Hospital > Valle > Río",
+    lockedTeaser: "Empieza aquí.",
     beats: [
       {
         id: "taxi-late",
         location: "taxi",
         speaker: "Narrador",
         text:
-          "Julio tenia frio suave. El taxi avanzaba, pero para Alexis cada semaforo parecia quedarse pensando demasiado.",
+          "Era julio y hacía un frío suave. El taxi avanzaba, pero para Alexis cada semáforo parecía quedarse pensando demasiado.",
         actors: {
           alexis: { x: 464, y: 378, mood: "nervous", facing: "left", visible: false },
           kiara: { x: 622, y: 378, mood: "thinking", facing: "left", visible: false }
         },
         props: [
           { texture: "scene-taxi-back-close-day", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-taxi-back-seat", x: 610, y: 532, scale: 0.54, depth: 32, float: 0.25 }
+          { texture: "couple-taxi-back-seat", x: 610, y: 528, scale: 0.6, depth: 32, float: 0.18 }
         ],
         camera: { zoom: 1.08, x: 540, y: 342, duration: 920, driftX: 6, driftY: 2, driftSpeed: 1.05 },
         cinematic: {
           vignette: 0.08,
           warmth: 0.04,
-          heartbeat: 0.35,
           locationCard: { title: "Taxi", subtitle: "Julio · tarde · ya muy tarde" }
         },
         pace: "fast"
@@ -157,55 +166,55 @@ export const chapters: Chapter[] = [
         id: "taxi-message",
         location: "taxi",
         speaker: "Kiara",
-        text: "Ya llegaste? Estoy cerca del hospital. Apurateee.",
+        text: "¿Ya llegaste? Estoy cerca del hospital. Apúrateee.",
         actors: {
           alexis: { x: 464, y: 378, mood: "surprised", facing: "left", visible: false },
           kiara: { x: 622, y: 378, mood: "thinking", facing: "left", visible: false }
         },
         props: [
           { texture: "scene-taxi-back-close-day", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-taxi-back-seat", x: 660, y: 532, scale: 0.62, depth: 32, float: 0.28 }
+          { texture: "couple-taxi-back-seat", x: 660, y: 528, scale: 0.66, depth: 32, float: 0.2 }
         ],
         camera: { zoom: 1.3, x: 640, y: 352, duration: 720, driftX: 4, driftY: 2, driftSpeed: 1.2 },
-        cinematic: { vignette: 0.1, shake: 0.0015, shakeDuration: 180, heartbeat: 0.55 },
+        cinematic: { vignette: 0.1, shake: 0.0015, shakeDuration: 180 },
         pace: "urgent"
       },
       {
         id: "taxi-pressure",
         location: "taxi",
         speaker: "Alexis",
-        text: "Jefe, por favor, un poquito mas rapido. No quiero llegar mas tarde de lo que ya estoy.",
+        text: "Jefe, por favor, un poquito más rápido. No quiero llegar más tarde de lo que ya estoy.",
         actors: {
           alexis: { x: 464, y: 378, mood: "talking", facing: "left", visible: false },
           kiara: { x: 624, y: 378, mood: "shy", facing: "left", visible: false }
         },
         props: [
           { texture: "scene-taxi-back-close-day", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-taxi-back-seat", x: 660, y: 532, scale: 0.64, depth: 32, float: 0.25 }
+          { texture: "couple-taxi-back-seat", x: 660, y: 528, scale: 0.68, depth: 32, float: 0.18 }
         ],
         camera: { zoom: 1.32, x: 640, y: 354, duration: 680, driftX: 3, driftY: 1, driftSpeed: 1.1 },
-        cinematic: { vignette: 0.08, heartbeat: 0.5 },
+        cinematic: { vignette: 0.08 },
         pace: "fast",
         choices: [
           {
             id: "taxi-special",
             label: "Es que ella es especial.",
             resultSpeaker: "Narrador",
-            resultText: "El taxi siguio igual, pero Alexis ya habia confesado lo obvio: no era una cita cualquiera.",
+            resultText: "El taxi siguió igual, pero Alexis ya había confesado lo obvio: no era una cita cualquiera.",
             stat: { id: "ternura", label: "Ternura" }
           },
           {
             id: "taxi-nervous",
             label: "No quiero que se enoje.",
             resultSpeaker: "Narrador",
-            resultText: "La prisa no era solo por llegar. Era por no arruinar algo que todavia ni empezaba.",
+            resultText: "La prisa no era solo por llegar. Era por no arruinar algo que todavía ni empezaba.",
             stat: { id: "nervios", label: "Nervios" }
           },
           {
             id: "taxi-calm",
             label: "Respirar y mirar el camino.",
             resultSpeaker: "Narrador",
-            resultText: "Alexis respiro hondo. El corazon, claramente, no quiso colaborar.",
+            resultText: "Alexis respiró hondo. El corazón, claramente, no quiso colaborar.",
             stat: { id: "nervios", label: "Nervios" }
           }
         ]
@@ -214,17 +223,17 @@ export const chapters: Chapter[] = [
         id: "taxi-driver-tease",
         location: "taxi",
         speaker: "Chofer",
-        text: "Tranquilo, joven. Si es para una chica, seguro igual lo va a esperar.",
+        text: "Tranquilo, joven. Si es por una chica, seguro todavía lo espera.",
         actors: {
           alexis: { x: 464, y: 378, mood: "nervous", facing: "left", visible: false },
           kiara: { x: 624, y: 378, mood: "shy", facing: "left", visible: false }
         },
         props: [
           { texture: "scene-taxi-back-close-day", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-taxi-back-seat", x: 660, y: 532, scale: 0.58, depth: 32, alpha: 0.9, float: 0.25 }
+          { texture: "couple-taxi-back-seat", x: 660, y: 528, scale: 0.62, depth: 32, alpha: 0.9, float: 0.18 }
         ],
         camera: { zoom: 1.14, x: 360, y: 342, duration: 720, driftX: 4, driftY: 2, driftSpeed: 0.9 },
-        cinematic: { vignette: 0.1, warmth: 0.05, bloom: 0.05, whisper: "la voz del chofer llego desde adelante" },
+        cinematic: { vignette: 0.1, warmth: 0.05, bloom: 0.05, whisper: "la voz del chofer llegó desde adelante" },
         pace: "normal"
       },
       {
@@ -232,17 +241,17 @@ export const chapters: Chapter[] = [
         location: "taxi",
         speaker: "Narrador",
         text:
-          "El chofer lo dijo como broma. Alexis, en cambio, lo escucho como si el destino acabara de pedirle explicaciones.",
+          "El chofer lo dijo como broma. Alexis, en cambio, lo escuchó como si el destino acabara de pedirle explicaciones.",
         actors: {
           alexis: { x: 464, y: 378, mood: "thinking", facing: "left", visible: false },
           kiara: { x: 624, y: 378, mood: "shy", facing: "left", visible: false }
         },
         props: [
           { texture: "scene-taxi-back-close-day", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-taxi-back-seat", x: 660, y: 532, scale: 0.66, depth: 32, float: 0.22 }
+          { texture: "couple-taxi-back-seat", x: 660, y: 528, scale: 0.7, depth: 32, float: 0.16 }
         ],
         camera: { zoom: 1.36, x: 640, y: 354, duration: 720, driftX: 2, driftY: 1, driftSpeed: 0.8 },
-        cinematic: { vignette: 0.1, whisper: "el corazon no quiso colaborar" }
+        cinematic: { vignette: 0.1, whisper: "el corazón no quiso colaborar" }
       },
       {
         id: "taxi-last-message",
@@ -255,10 +264,10 @@ export const chapters: Chapter[] = [
         },
         props: [
           { texture: "scene-taxi-back-close-day", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-taxi-back-seat", x: 660, y: 532, scale: 0.68, depth: 32, float: 0.22 }
+          { texture: "couple-taxi-back-seat", x: 660, y: 528, scale: 0.72, depth: 32, float: 0.16 }
         ],
         camera: { zoom: 1.38, x: 642, y: 356, duration: 760, driftX: 2, driftY: 1, driftSpeed: 0.9 },
-        cinematic: { vignette: 0.08, heartbeat: 0.4, bloom: 0.06, whisper: "no te pierdas..." },
+        cinematic: { vignette: 0.08, bloom: 0.06, whisper: "no te pierdas..." },
         pace: "slow"
       },
       {
@@ -266,7 +275,7 @@ export const chapters: Chapter[] = [
         location: "hospital",
         speaker: "Narrador",
         text:
-          "El taxi paro frente al antiguo hospital. Era un edificio conocido, si, pero ese dia parecia iluminado de otra forma, como si supiera que iba a guardar un secreto.",
+          "El taxi se detuvo frente al antiguo hospital. Era un edificio conocido, sí, pero ese día parecía iluminado de otra forma, como si ya supiera que iba a guardar un secreto.",
         actors: {
           alexis: { x: 0, y: 0, mood: "idle", facing: "right", visible: false },
           kiara: { x: 0, y: 0, mood: "idle", facing: "left", visible: false }
@@ -279,7 +288,7 @@ export const chapters: Chapter[] = [
           vignette: 0.06,
           bloom: 0.06,
           flash: true,
-          locationCard: { title: "Hospital", subtitle: "Aqui empieza todo" }
+          locationCard: { title: "Hospital", subtitle: "Aquí empieza todo" }
         },
         pace: "slow"
       },
@@ -288,7 +297,7 @@ export const chapters: Chapter[] = [
         location: "hospital",
         speaker: "Narrador",
         text:
-          "Alexis bajo intentando verse tranquilo. El plan duro exactamente dos pasos: el celular aun pesaba en su mano y el corazon ya iba corriendo antes que el.",
+          "Alexis bajó intentando verse tranquilo. El plan duró exactamente dos pasos: el celular aún pesaba en su mano y el corazón ya iba corriendo antes que él.",
         actors: {
           alexis: { x: 438, y: 452, mood: "nervous", expression: "looking-phone", facing: "right", scale: 0.56 },
           kiara: { x: 0, y: 0, mood: "shy", facing: "left", visible: false }
@@ -300,8 +309,7 @@ export const chapters: Chapter[] = [
         camera: { zoom: 1.16, x: 438, y: 314, duration: 900, driftX: 4, driftY: 1, driftSpeed: 0.5 },
         cinematic: {
           warmth: 0.03,
-          heartbeat: 0.4,
-          locationCard: { title: "Hospital", subtitle: "Aqui empieza todo" },
+          locationCard: { title: "Hospital", subtitle: "Aquí empieza todo" },
           whisper: "respira hondo, ya llegaste"
         },
         pace: "slow"
@@ -311,7 +319,7 @@ export const chapters: Chapter[] = [
         location: "hospital",
         speaker: "Narrador",
         text:
-          "Levanto la vista. Al otro lado de la entrada, entre la luz tibia y las sombras de los arboles, Kiara estaba esperando.",
+          "Levantó la vista. Al otro lado de la entrada, entre la luz tibia y las sombras de los árboles, Kiara estaba esperando.",
         actors: {
           alexis: { x: 398, y: 452, mood: "surprised", expression: "wide-eyes-love", facing: "right", scale: 0.54 },
           kiara: { x: 580, y: 448, mood: "soft", expression: "gentle-smile", facing: "left", scale: 0.52 }
@@ -320,9 +328,8 @@ export const chapters: Chapter[] = [
         camera: { zoom: 1.16, x: 492, y: 314, duration: 1000, driftX: 4, driftY: 1, driftSpeed: 0.45 },
         cinematic: {
           warmth: 0.05,
-          heartbeat: 0.5,
           bloom: 0.06,
-          whisper: "ahi estaba ella"
+          whisper: "ahí estaba ella"
         },
         pace: "slow"
       },
@@ -331,7 +338,7 @@ export const chapters: Chapter[] = [
         location: "hospital",
         speaker: "Narrador",
         text:
-          "El lector puede verlo desde aqui: Alexis avanzo como si el piso se hubiera vuelto un escenario y todos sus nervios pidieran microfono.",
+          "Si lo hubieras visto desde aquí, habrías notado el desastre: Alexis avanzó como si el piso fuera un escenario y todos sus nervios pidieran micrófono.",
         actors: {
           alexis: { x: 418, y: 454, mood: "nervous", expression: "hand-on-cheek", facing: "right", scale: 0.54 },
           kiara: { x: 548, y: 452, mood: "shy", expression: "looking-down-soft", facing: "left", scale: 0.54 }
@@ -340,7 +347,6 @@ export const chapters: Chapter[] = [
         camera: { zoom: 1.18, x: 488, y: 316, duration: 1100, driftX: 3, driftY: 1, driftSpeed: 0.4 },
         cinematic: {
           warmth: 0.06,
-          heartbeat: 0.6,
           vignette: 0.05,
           bloom: 0.06
         },
@@ -351,23 +357,24 @@ export const chapters: Chapter[] = [
         location: "hospital",
         speaker: "Narrador",
         text:
-          "Y entonces la vio bien. Kiara estaba muy hermosa, con esa presencia que no hace ruido, pero cambia todo el lugar donde aparece.",
+          "Y entonces la vio bien. Kiara estaba hermosa, de esa forma tranquila que no hace ruido, pero cambia el lugar entero cuando aparece.",
         actors: {
           alexis: { x: 374, y: 378, mood: "surprised", facing: "right", visible: false },
           kiara: { x: 568, y: 378, mood: "soft", facing: "left", visible: false }
         },
         props: [
           { texture: "scene-hospital-entrance-close-day", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-hospital-meet-wide", x: 480, y: 508, scale: 0.72, depth: 32, float: 0.3 }
+          { texture: "couple-hospital-meet-wide", x: 480, y: 508, scale: 0.78, depth: 32, float: 0.3 }
         ],
-        camera: { zoom: 1.16, x: 480, y: 330, duration: 1100, driftX: 2, driftY: 1, driftSpeed: 0.48 },
+        camera: { zoom: 1.18, x: 480, y: 326, duration: 1100, driftX: 1.6, driftY: 0.8, driftSpeed: 0.42 },
         cinematic: {
           letterbox: 24,
           warmth: 0.06,
           vignette: 0.12,
           flash: true,
-          heartbeat: 0.65,
           bloom: 0.12,
+          godrays: 0.55,
+          hideHud: true,
           whisper: "el tiempo se detuvo un segundo",
           slowmo: 0.35
         },
@@ -378,17 +385,17 @@ export const chapters: Chapter[] = [
         location: "hospital",
         speaker: "Narrador",
         text:
-          "Se miraron de cerca. Fueron apenas unos segundos, pero alcanzaron para que ninguno supiera que hacer con las manos, ni con la sonrisa, ni con el aire.",
+          "Se miraron de cerca. Fueron apenas unos segundos, pero alcanzaron para que ninguno supiera qué hacer con las manos, ni con la sonrisa, ni con el aire.",
         actors: {
           alexis: { x: 380, y: 540, mood: "shy", expression: "awkward-smile", facing: "right", visible: false },
           kiara: { x: 580, y: 540, mood: "shy", expression: "close-nervous", facing: "left", visible: false }
         },
         props: [
           { texture: "scene-hospital-entrance-close-day", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-hospital-meet-close", x: 480, y: 508, scale: 0.64, depth: 32, float: 0.28 }
+          { texture: "couple-hospital-meet-close", x: 480, y: 508, scale: 0.7, depth: 32, float: 0.24 }
         ],
-        camera: { zoom: 1.2, x: 480, y: 338, duration: 900, driftX: 1.5, driftY: 1, driftSpeed: 0.45 },
-        cinematic: { letterbox: 22, warmth: 0.05, vignette: 0.1, heartbeat: 0.55 },
+        camera: { zoom: 1.23, x: 480, y: 336, duration: 900, driftX: 1, driftY: 0.7, driftSpeed: 0.38 },
+        cinematic: { letterbox: 22, warmth: 0.05, vignette: 0.1 },
         pace: "slow"
       },
       {
@@ -396,10 +403,10 @@ export const chapters: Chapter[] = [
         location: "hospital",
         speaker: "Narrador",
         text:
-          "Alexis habia ensayado frases en el taxi. Al verla, todas se escondieron. Solo quedo una sonrisa pequena, demasiado honesta para fingir seguridad.",
+          "Alexis había ensayado frases en el taxi. Al verla, todas se escondieron. Solo quedó una sonrisa pequeña, demasiado honesta para fingir seguridad.",
         actors: {
-          alexis: { x: 404, y: 454, mood: "shy", expression: "hand-on-cheek", facing: "right", scale: 0.5 },
-          kiara: { x: 560, y: 452, mood: "soft", expression: "looking-down-soft", facing: "left", scale: 0.5 }
+          alexis: { x: 404, y: 454, mood: "shy", expression: "hand-on-cheek", facing: "right", scale: 0.54 },
+          kiara: { x: 560, y: 452, mood: "soft", expression: "looking-down-soft", facing: "left", scale: 0.54 }
         },
         props: [{ texture: "scene-hospital-entrance-close-day", x: 480, y: 540, scale: 1, depth: 23 }],
         camera: { zoom: 1.2, x: 484, y: 322, duration: 980, driftX: 1, driftY: 1, driftSpeed: 0.4 },
@@ -418,21 +425,21 @@ export const chapters: Chapter[] = [
         speaker: "Kiara",
         text: "Llegaste tarde.",
         actors: {
-          alexis: { x: 404, y: 454, mood: "nervous", expression: "panic-late", facing: "right", scale: 0.5 },
+          alexis: { x: 404, y: 454, mood: "nervous", expression: "panic-late", facing: "right", scale: 0.54 },
           kiara: { x: 560, y: 452, mood: "talking", expression: "teasing-smile", facing: "left", scale: 0.54 }
         },
         props: [{ texture: "scene-hospital-entrance-close-day", x: 480, y: 540, scale: 1, depth: 23 }],
         camera: { zoom: 1.28, x: 548, y: 324, duration: 540 },
-        cinematic: { warmth: 0.05, vignette: 0.04, heartbeat: 0.4 }
+        cinematic: { warmth: 0.05, vignette: 0.04 }
       },
       {
         id: "hospital-save",
         location: "hospital",
         speaker: "Alexis",
-        text: "Pero llegue.",
+        text: "Pero llegué.",
         actors: {
           alexis: { x: 404, y: 454, mood: "talking", expression: "trying-cool", facing: "right", scale: 0.54 },
-          kiara: { x: 560, y: 452, mood: "shy", expression: "hand-near-mouth", facing: "left", scale: 0.5 }
+          kiara: { x: 560, y: 452, mood: "shy", expression: "hand-near-mouth", facing: "left", scale: 0.54 }
         },
         props: [{ texture: "scene-hospital-entrance-close-day", x: 480, y: 540, scale: 1, depth: 23 }],
         camera: { zoom: 1.28, x: 414, y: 324, duration: 540 },
@@ -443,10 +450,10 @@ export const chapters: Chapter[] = [
         location: "hospital",
         speaker: "Narrador",
         text:
-          "La frase quedo flotando entre los dos. No era una pelea, era peor: era ternura intentando hacerse la valiente.",
+          "La frase quedó flotando entre los dos. No era una pelea, era peor: era ternura intentando hacerse la valiente.",
         actors: {
-          alexis: { x: 404, y: 454, mood: "nervous", expression: "awkward-smile", facing: "right", scale: 0.5 },
-          kiara: { x: 560, y: 452, mood: "thinking", expression: "looking-away-shy", facing: "left", scale: 0.5 }
+          alexis: { x: 404, y: 454, mood: "nervous", expression: "awkward-smile", facing: "right", scale: 0.54 },
+          kiara: { x: 560, y: 452, mood: "thinking", expression: "looking-away-shy", facing: "left", scale: 0.54 }
         },
         props: [{ texture: "scene-hospital-entrance-close-day", x: 480, y: 540, scale: 1, depth: 23 }],
         camera: { zoom: 1.16, x: 486, y: 322, duration: 780, driftX: 1, driftY: 1, driftSpeed: 0.52 },
@@ -456,22 +463,22 @@ export const chapters: Chapter[] = [
             id: "break-ice-pretty",
             label: "Decirle que se ve muy bonita.",
             resultSpeaker: "Alexis",
-            resultText: "Estas muy bonita. Lo dijo rapido, casi bajito, como si la frase le quemara de pura verdad.",
+            resultText: "Estás muy bonita. Lo dijo rápido, casi bajito, como si la frase le quemara de pura verdad.",
             stat: { id: "nervios", label: "Nervios" }
           },
           {
             id: "break-ice-wait",
-            label: "Preguntar si espero mucho.",
+            label: "Preguntarle si esperó mucho.",
             resultSpeaker: "Alexis",
-            resultText: "Esperaste mucho? Alexis intento sonar tranquilo. Su voz salio suave, pero sus nervios llegaron primero.",
+            resultText: "¿Esperaste mucho? Alexis intentó sonar tranquilo. Su voz salió suave, pero sus nervios llegaron primero.",
             stat: { id: "ternura", label: "Ternura" }
           },
           {
             id: "break-ice-walk",
             label: "Invitarla a caminar.",
             resultSpeaker: "Alexis",
-            resultText: "Caminamos? Era una pregunta pequena, pero abrio la puerta para todo lo que venia.",
-            stat: { id: "sueno", label: "Sueno compartido" }
+            resultText: "¿Caminamos? Era una pregunta pequeña, pero abrió la puerta para todo lo que venía.",
+            stat: { id: "sueno", label: "Sueño compartido" }
           }
         ]
       },
@@ -480,14 +487,14 @@ export const chapters: Chapter[] = [
         location: "hospital",
         speaker: "Narrador",
         text:
-          "Ella sonrio. Primero poquito, luego de verdad. Y con eso, por unos segundos, todo el retraso parecio tener perdon y hasta un poquito de suerte.",
+          "Ella sonrió. Primero poquito, luego de verdad. Y con eso, por unos segundos, todo el retraso pareció tener perdón y hasta un poquito de suerte.",
         actors: {
           alexis: { x: 380, y: 540, mood: "shy", expression: "soft-love", facing: "right", visible: false },
           kiara: { x: 582, y: 540, mood: "happy", expression: "gentle-smile", facing: "left", visible: false }
         },
         props: [
           { texture: "scene-hospital-entrance-close-day", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-laugh-shared", x: 490, y: 508, scale: 0.58, depth: 32, float: 0.22 }
+          { texture: "couple-laugh-shared", x: 490, y: 508, scale: 0.64, depth: 32, float: 0.18 }
         ],
         memory: {
           id: "first-smile",
@@ -503,7 +510,8 @@ export const chapters: Chapter[] = [
           vignette: 0.08,
           bloom: 0.12,
           chromatic: true,
-          whisper: "guardalo. este momento ya vale para siempre."
+          hideHud: true,
+          whisper: "guárdalo. este momento ya vale para siempre."
         },
         pace: "slow"
       },
@@ -511,34 +519,34 @@ export const chapters: Chapter[] = [
         id: "hospital-first-step-together",
         location: "hospital",
         speaker: "Kiara",
-        text: "Ya, vamos. Pero camina rapido, para recuperar el tiempo que perdiste.",
+        text: "Ya, vamos. Pero camina rápido, para recuperar el tiempo que perdiste.",
         actors: {
           alexis: { x: 386, y: 540, mood: "nervous", expression: "awkward-smile", facing: "right", visible: false },
           kiara: { x: 578, y: 540, mood: "laughing", expression: "laughing-haha", facing: "left", visible: false }
         },
         props: [
           { texture: "scene-hospital-entrance-close-day", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-walking-hand-touch", x: 500, y: 530, scale: 0.43, depth: 32, float: 0.25 }
+          { texture: "couple-walking-hand-touch", x: 500, y: 524, scale: 0.48, depth: 32, float: 0.2 }
         ],
-        camera: { zoom: 1.12, x: 500, y: 366, duration: 760, driftX: 2, driftY: 1, driftSpeed: 0.45 },
-        cinematic: { warmth: 0.05, vignette: 0.04, whisper: "la primera caminata empezo con una amenaza tierna" }
+        camera: { zoom: 1.14, x: 500, y: 358, duration: 760, driftX: 1.5, driftY: 0.8, driftSpeed: 0.42 },
+        cinematic: { warmth: 0.05, vignette: 0.04, whisper: "la primera caminata empezó con una amenaza tierna" }
       },
       {
         id: "hospital-narrator-warning",
         location: "hospital",
         speaker: "Narrador",
         text:
-          "Lector, fijate bien: aqui Alexis ya estaba perdido. Todavia no lo sabia, pero la historia ya lo habia elegido y Kiara iba caminando justo al lado.",
+          "Fíjate bien: aquí Alexis ya estaba perdido. Todavía no lo sabía, pero la historia ya lo había elegido y Kiara iba caminando justo al lado.",
         actors: {
           alexis: { x: 380, y: 540, mood: "shy", expression: "soft-love", facing: "right", visible: false },
           kiara: { x: 582, y: 540, mood: "happy", expression: "gentle-smile", facing: "left", visible: false }
         },
         props: [
           { texture: "scene-hospital-entrance-day", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-walking-hand-touch", x: 516, y: 530, scale: 0.42, depth: 32, float: 0.25 }
+          { texture: "couple-walking-hand-touch", x: 516, y: 524, scale: 0.48, depth: 32, float: 0.2 }
         ],
-        camera: { zoom: 1.08, x: 514, y: 360, duration: 860, driftX: 6, driftY: 2, driftSpeed: 0.38 },
-        cinematic: { letterbox: 20, warmth: 0.05, vignette: 0.06, bloom: 0.04, whisper: "el destino ya lo habia elegido" }
+        camera: { zoom: 1.12, x: 514, y: 356, duration: 860, driftX: 5, driftY: 1.6, driftSpeed: 0.34 },
+        cinematic: { letterbox: 20, warmth: 0.05, vignette: 0.06, bloom: 0.04, whisper: "el destino ya lo había elegido" }
       },
       {
         id: "road-walk",
@@ -550,81 +558,81 @@ export const chapters: Chapter[] = [
           kiara: { x: 462, y: 378, mood: "walk", facing: "right", pose: "walking-side", visible: false }
         },
         props: [
-          { texture: "scene-road-golden-path", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-walking-side-01", x: 500, y: 520, scale: 0.48, depth: 32, float: 0.35 }
+          { texture: "scene-road-asphalt-path", x: 480, y: 540, scale: 1, depth: 23, alpha: 0.86 },
+          { texture: "couple-walking-side-01", x: 500, y: 516, scale: 0.54, depth: 32, float: 0.25 }
         ],
-        camera: { zoom: 1.02, x: 512, y: 348, duration: 900, driftX: 14, driftY: 3, driftSpeed: 0.65 },
-        cinematic: { locationCard: { title: "Camino", subtitle: "hacia ningun lado en particular" } }
+        camera: { zoom: 1.06, x: 512, y: 342, duration: 900, driftX: 10, driftY: 2.4, driftSpeed: 0.55 },
+        cinematic: { locationCard: { title: "Camino", subtitle: "hacia ningún lado en particular" } }
       },
       {
         id: "road-little-talks",
         location: "road",
         speaker: "Narrador",
         text:
-          "Al inicio hablaron con cuidado. Como quien sostiene algo pequeno y bonito, y teme apretarlo demasiado por miedo a que se rompa.",
+          "Al inicio hablaron con cuidado. Como quien sostiene algo pequeño y bonito, y teme apretarlo demasiado por miedo a que se rompa.",
         actors: {
           alexis: { x: 334, y: 378, mood: "walk", facing: "right", pose: "walking-side", visible: false },
           kiara: { x: 478, y: 378, mood: "walk", facing: "right", pose: "walking-side", visible: false }
         },
         props: [
-          { texture: "scene-road-golden-path", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-walking-side-02", x: 508, y: 520, scale: 0.48, depth: 32, float: 0.35 }
+          { texture: "scene-road-asphalt-path", x: 480, y: 540, scale: 1, depth: 23, alpha: 0.86 },
+          { texture: "couple-walking-side-02", x: 508, y: 516, scale: 0.54, depth: 32, float: 0.25 }
         ],
-        camera: { zoom: 1.02, x: 518, y: 348, duration: 900, driftX: 16, driftY: 3, driftSpeed: 0.58 }
+        camera: { zoom: 1.06, x: 518, y: 342, duration: 900, driftX: 11, driftY: 2.4, driftSpeed: 0.5 }
       },
       {
         id: "road-soft-silence",
         location: "road",
         speaker: "Narrador",
         text:
-          "Tambien hubo silencios cortitos. No de esos que incomodan, sino de esos donde uno camina al lado de alguien y se siente acompanado.",
+          "También hubo silencios cortitos. No de esos que incomodan, sino de esos donde uno camina al lado de alguien y se siente acompañado.",
         actors: {
           alexis: { x: 340, y: 378, mood: "walk", facing: "right", pose: "walking-side", visible: false },
           kiara: { x: 486, y: 378, mood: "walk", facing: "right", pose: "walking-side", visible: false }
         },
         props: [
-          { texture: "scene-road-golden-path", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-walking-side-03", x: 516, y: 520, scale: 0.48, depth: 32, float: 0.35 }
+          { texture: "scene-road-asphalt-path", x: 480, y: 540, scale: 1, depth: 23, alpha: 0.84 },
+          { texture: "couple-walking-side-03", x: 516, y: 516, scale: 0.54, depth: 32, float: 0.25 }
         ],
-        camera: { zoom: 1.02, x: 524, y: 348, duration: 1100, driftX: 20, driftY: 4, driftSpeed: 0.42 },
+        camera: { zoom: 1.06, x: 524, y: 342, duration: 1100, driftX: 13, driftY: 3, driftSpeed: 0.38 },
         cinematic: { warmth: 0.02, vignette: 0.04 }
       },
       {
         id: "road-trust",
         location: "road",
         speaker: "Kiara",
-        text: "Y tu siempre llegas asi de tarde o hoy querias hacer drama?",
+        text: "¿Y tú siempre llegas así de tarde o hoy querías hacer drama?",
         actors: {
-          alexis: { x: 382, y: 454, mood: "nervous", expression: "nervous-soft", facing: "right", scale: 0.5 },
-          kiara: { x: 552, y: 452, mood: "talking", expression: "teasing-smile", facing: "left", scale: 0.5 }
+          alexis: { x: 382, y: 454, mood: "nervous", expression: "nervous-soft", facing: "right", scale: 0.54 },
+          kiara: { x: 552, y: 452, mood: "talking", expression: "teasing-smile", facing: "left", scale: 0.55 }
         },
-        props: [{ texture: "scene-road-golden-path", x: 480, y: 540, scale: 1, depth: 23 }],
-        camera: { zoom: 1.12, x: 468, y: 322, duration: 720, driftX: 2, driftY: 1, driftSpeed: 0.5 }
+        props: [{ texture: "scene-road-asphalt-path", x: 480, y: 540, scale: 1, depth: 23, alpha: 0.84 }],
+        camera: { zoom: 1.16, x: 468, y: 318, duration: 720, driftX: 1.5, driftY: 0.8, driftSpeed: 0.46 }
       },
       {
         id: "road-trust-answer",
         location: "road",
         speaker: "Alexis",
-        text: "Hoy nomas. Bueno... espero que hoy nomas.",
+        text: "Hoy nomás. Bueno... espero que hoy nomás.",
         actors: {
-          alexis: { x: 382, y: 454, mood: "talking", expression: "awkward-smile", facing: "right", scale: 0.5 },
-          kiara: { x: 552, y: 452, mood: "laughing", expression: "hand-near-mouth", facing: "left", scale: 0.5 }
+          alexis: { x: 382, y: 454, mood: "talking", expression: "awkward-smile", facing: "right", scale: 0.54 },
+          kiara: { x: 552, y: 452, mood: "laughing", expression: "hand-near-mouth", facing: "left", scale: 0.55 }
         },
-        props: [{ texture: "scene-road-golden-path", x: 480, y: 540, scale: 1, depth: 23 }],
-        camera: { zoom: 1.12, x: 468, y: 322, duration: 720, driftX: 2, driftY: 1, driftSpeed: 0.52 },
+        props: [{ texture: "scene-road-asphalt-path", x: 480, y: 540, scale: 1, depth: 23, alpha: 0.84 }],
+        camera: { zoom: 1.16, x: 468, y: 318, duration: 720, driftX: 1.5, driftY: 0.8, driftSpeed: 0.48 },
         cinematic: { warmth: 0.03 }
       },
       {
         id: "road-happy",
         location: "road",
         speaker: "Narrador",
-        text: "Cuando Kiara sonreia, Alexis sentia una felicidad torpe, grande, dificil de esconder.",
+        text: "Cuando Kiara sonreía, Alexis sentía una felicidad torpe, grande, difícil de esconder.",
         actors: {
-          alexis: { x: 382, y: 454, mood: "happy", expression: "soft-love", facing: "right", scale: 0.5 },
-          kiara: { x: 552, y: 452, mood: "happy", expression: "gentle-smile", facing: "left", scale: 0.5 }
+          alexis: { x: 382, y: 454, mood: "happy", expression: "soft-love", facing: "right", scale: 0.54 },
+          kiara: { x: 552, y: 452, mood: "happy", expression: "gentle-smile", facing: "left", scale: 0.55 }
         },
-        props: [{ texture: "scene-road-golden-path", x: 480, y: 540, scale: 1, depth: 23 }],
-        camera: { zoom: 1.1, x: 468, y: 322, duration: 900, driftX: 4, driftY: 2, driftSpeed: 0.5 },
+        props: [{ texture: "scene-road-asphalt-path", x: 480, y: 540, scale: 1, depth: 23, alpha: 0.82 }],
+        camera: { zoom: 1.15, x: 468, y: 318, duration: 900, driftX: 2.6, driftY: 1.4, driftSpeed: 0.46 },
         cinematic: { warmth: 0.04 }
       },
       {
@@ -632,21 +640,21 @@ export const chapters: Chapter[] = [
         location: "bosquete",
         speaker: "Narrador",
         text:
-          "La carretera quedo atras poco a poco. No tenian un plan perfecto, pero si algo mejor: ganas de seguir caminando.",
+          "La carretera quedó atrás poco a poco. No tenían un plan perfecto, pero sí algo mejor: ganas de seguir caminando.",
         actors: {
           alexis: { x: 366, y: 378, mood: "walk", facing: "right", visible: false },
           kiara: { x: 524, y: 378, mood: "walk", facing: "right", visible: false }
         },
         props: [
           { texture: "scene-bosquete-clearing", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-walking-back-01", x: 480, y: 520, scale: 0.5, depth: 32, float: 0.35 }
+          { texture: "couple-walking-back-01", x: 480, y: 516, scale: 0.56, depth: 32, float: 0.25 }
         ],
-        camera: { zoom: 1.04, x: 492, y: 348, duration: 1100, driftX: 18, driftY: 5, driftSpeed: 0.38 },
+        camera: { zoom: 1.08, x: 492, y: 342, duration: 1100, driftX: 12, driftY: 3.6, driftSpeed: 0.34 },
         cinematic: {
           letterbox: 18,
           warmth: 0.03,
           vignette: 0.04,
-          locationCard: { title: "Campo", subtitle: "sin plan, con compania" }
+          locationCard: { title: "Campo", subtitle: "sin plan, con compañía" }
         }
       },
       {
@@ -661,9 +669,9 @@ export const chapters: Chapter[] = [
         },
         props: [
           { texture: "scene-bosquete-clearing", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-walking-back-02", x: 480, y: 520, scale: 0.5, depth: 32, float: 0.35 }
+          { texture: "couple-walking-back-02", x: 480, y: 516, scale: 0.56, depth: 32, float: 0.25 }
         ],
-        camera: { zoom: 1.04, x: 492, y: 348, duration: 1100, driftX: 20, driftY: 5, driftSpeed: 0.36 },
+        camera: { zoom: 1.08, x: 492, y: 342, duration: 1100, driftX: 13, driftY: 3.6, driftSpeed: 0.32 },
         cinematic: { letterbox: 18, warmth: 0.03, vignette: 0.04 }
       },
       {
@@ -672,18 +680,18 @@ export const chapters: Chapter[] = [
         speaker: "Kiara",
         text: "Me gusta ese color. Cuando tenga mi moto, va a ser morada.",
         actors: {
-          alexis: { x: 364, y: 454, mood: "thinking", facing: "right", scale: 0.5 },
-          kiara: { x: 556, y: 452, mood: "talking", expression: "flirty-soft", facing: "left", scale: 0.5 }
+          alexis: { x: 364, y: 454, mood: "thinking", facing: "right", scale: 0.54 },
+          kiara: { x: 556, y: 452, mood: "talking", expression: "flirty-soft", facing: "left", scale: 0.55 }
         },
         memory: {
           id: "purple-bike",
           label: "La moto morada",
-          text: "Kiara dijo que su moto seria morada. Desde entonces, ese color dejo de ser un color cualquiera.",
+          text: "Kiara dijo que su moto sería morada. Desde entonces, ese color dejó de ser un color cualquiera.",
           x: 760,
           y: 292
         },
         props: [{ texture: "scene-bosquete-clearing", x: 480, y: 540, scale: 1, depth: 23 }],
-        camera: { zoom: 1.12, x: 506, y: 322, duration: 860, driftX: 6, driftY: 2, driftSpeed: 0.5 },
+        camera: { zoom: 1.16, x: 506, y: 318, duration: 860, driftX: 4, driftY: 1.4, driftSpeed: 0.46 },
         cinematic: { warmth: 0.03 }
       },
       {
@@ -691,38 +699,38 @@ export const chapters: Chapter[] = [
         location: "bosquete",
         speaker: "Narrador",
         text:
-          "No lo dijo como un comentario cualquiera. Lo dijo con esa seguridad de quien ya se imagino el viento, el camino y su propio color favorito esperandola.",
+          "No lo dijo como un comentario cualquiera. Lo dijo con esa seguridad de quien ya se imaginó el viento, el camino y su propio color favorito esperándola.",
         actors: {
-          alexis: { x: 364, y: 454, mood: "thinking", expression: "soft-love", facing: "right", scale: 0.5 },
-          kiara: { x: 556, y: 452, mood: "happy", expression: "gentle-smile", facing: "left", scale: 0.5 }
+          alexis: { x: 364, y: 454, mood: "thinking", expression: "soft-love", facing: "right", scale: 0.54 },
+          kiara: { x: 556, y: 452, mood: "happy", expression: "gentle-smile", facing: "left", scale: 0.55 }
         },
         props: [{ texture: "scene-bosquete-clearing", x: 480, y: 540, scale: 1, depth: 23 }],
-        camera: { zoom: 1.12, x: 506, y: 322, duration: 920, driftX: 4, driftY: 2, driftSpeed: 0.45 },
+        camera: { zoom: 1.16, x: 506, y: 318, duration: 920, driftX: 3, driftY: 1.3, driftSpeed: 0.42 },
         cinematic: { warmth: 0.04 }
       },
       {
         id: "purple-bike-color",
         location: "bosquete",
         speaker: "Alexis",
-        text: "Entonces el morado ya tiene duena.",
+        text: "Entonces el morado ya tiene dueña.",
         actors: {
-          alexis: { x: 364, y: 454, mood: "talking", expression: "flirty-shy", facing: "right", scale: 0.51 },
-          kiara: { x: 556, y: 452, mood: "shy", expression: "shy-soft", facing: "left", scale: 0.5 }
+          alexis: { x: 364, y: 454, mood: "talking", expression: "flirty-shy", facing: "right", scale: 0.55 },
+          kiara: { x: 556, y: 452, mood: "shy", expression: "shy-soft", facing: "left", scale: 0.55 }
         },
         props: [{ texture: "scene-bosquete-clearing", x: 480, y: 540, scale: 1, depth: 23 }],
-        camera: { zoom: 1.14, x: 486, y: 322, duration: 760, driftX: 2, driftY: 1, driftSpeed: 0.52 }
+        camera: { zoom: 1.18, x: 486, y: 318, duration: 760, driftX: 1.4, driftY: 0.8, driftSpeed: 0.48 }
       },
       {
         id: "purple-bike-joke",
         location: "bosquete",
         speaker: "Alexis",
-        text: "Entonces cuando tengas tu moto morada, me recoges para que ya no llegue tarde.",
+        text: "Entonces, cuando tengas tu moto morada, me recoges para que ya no llegue tarde.",
         actors: {
-          alexis: { x: 364, y: 454, mood: "talking", expression: "trying-cool", facing: "right", scale: 0.51 },
-          kiara: { x: 556, y: 452, mood: "surprised", expression: "surprised-soft", facing: "left", scale: 0.5 }
+          alexis: { x: 364, y: 454, mood: "talking", expression: "trying-cool", facing: "right", scale: 0.55 },
+          kiara: { x: 556, y: 452, mood: "surprised", expression: "surprised-soft", facing: "left", scale: 0.55 }
         },
         props: [{ texture: "scene-bosquete-clearing", x: 480, y: 540, scale: 1, depth: 23 }],
-        camera: { zoom: 1.14, x: 486, y: 322, duration: 720, driftX: 2, driftY: 1, driftSpeed: 0.55 },
+        camera: { zoom: 1.18, x: 486, y: 318, duration: 720, driftX: 1.4, driftY: 0.8, driftSpeed: 0.5 },
         cinematic: { shake: 0.0012, shakeDuration: 160 }
       },
       {
@@ -731,33 +739,34 @@ export const chapters: Chapter[] = [
         speaker: "Kiara",
         text: "Depende. Si sigues llegando tarde, te dejo caminando.",
         actors: {
-          alexis: { x: 364, y: 454, mood: "nervous", expression: "awkward-smile", facing: "right", scale: 0.5 },
-          kiara: { x: 556, y: 452, mood: "laughing", expression: "hand-near-mouth", facing: "left", scale: 0.51 }
+          alexis: { x: 364, y: 454, mood: "nervous", expression: "awkward-smile", facing: "right", scale: 0.54 },
+          kiara: { x: 556, y: 452, mood: "laughing", expression: "hand-near-mouth", facing: "left", scale: 0.56 }
         },
         props: [{ texture: "scene-bosquete-clearing", x: 480, y: 540, scale: 1, depth: 23 }],
-        camera: { zoom: 1.16, x: 486, y: 322, duration: 760, driftX: 2, driftY: 1, driftSpeed: 0.52 },
+        camera: { zoom: 1.2, x: 486, y: 318, duration: 760, driftX: 1.4, driftY: 0.8, driftSpeed: 0.46 },
         cinematic: { warmth: 0.03 }
       },
       {
         id: "valley-top",
         location: "valley",
         speaker: "Narrador",
-        text: "Subieron por los pastizales hasta una pequena cima. Abajo, el valle parecia abrirse despacio, como si tambien quisiera conocerlos.",
+        text: "Subieron por los pastizales hasta una pequeña cima. Abajo, el valle parecía abrirse despacio, como si también quisiera conocerlos.",
         actors: {
           alexis: { x: 354, y: 376, mood: "soft", facing: "right", scale: 0.44, pose: "back", visible: false },
           kiara: { x: 500, y: 376, mood: "soft", facing: "left", scale: 0.44, pose: "back", visible: false }
         },
         props: [
           { texture: "scene-valley-cima-close", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-valley-back-wide", x: 480, y: 520, scale: 0.52, depth: 32, float: 0.35 }
+          { texture: "couple-valley-back-wide", x: 480, y: 516, scale: 0.58, depth: 32, float: 0.24 }
         ],
-        camera: { zoom: 1, x: 486, y: 348, duration: 1200, driftX: 22, driftY: 6, driftSpeed: 0.3 },
+        camera: { zoom: 1.04, x: 486, y: 340, duration: 1200, driftX: 16, driftY: 4.4, driftSpeed: 0.28 },
         cinematic: {
           letterbox: 20,
           warmth: 0.04,
           vignette: 0.05,
           locationCard: { title: "Valle", subtitle: "vista desde la cima" },
-          bloom: 0.06
+          bloom: 0.06,
+          godrays: 0.5
         },
         pace: "slow"
       },
@@ -766,16 +775,16 @@ export const chapters: Chapter[] = [
         location: "valley",
         speaker: "Narrador",
         text:
-          "Desde arriba se veia el rio, los cultivos y el valle entero. El mundo parecia respirar mas despacio, y ellos tambien.",
+          "Desde arriba se veía el río, los cultivos y el valle entero. El mundo parecía respirar más despacio, y ellos también.",
         actors: {
           alexis: { x: 354, y: 376, mood: "soft", facing: "right", scale: 0.44, pose: "back", visible: false },
           kiara: { x: 500, y: 376, mood: "soft", facing: "left", scale: 0.44, pose: "back", visible: false }
         },
         props: [
           { texture: "scene-valley-cima-close", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-valley-back-wide", x: 480, y: 520, scale: 0.52, depth: 32, float: 0.35 }
+          { texture: "couple-valley-back-wide", x: 480, y: 516, scale: 0.58, depth: 32, float: 0.24 }
         ],
-        camera: { zoom: 1.03, x: 488, y: 346, duration: 1300, driftX: 26, driftY: 6, driftSpeed: 0.28 },
+        camera: { zoom: 1.06, x: 488, y: 340, duration: 1300, driftX: 18, driftY: 4.4, driftSpeed: 0.25 },
         cinematic: { letterbox: 22, warmth: 0.05, vignette: 0.06 }
       },
       {
@@ -783,29 +792,29 @@ export const chapters: Chapter[] = [
         location: "valley",
         speaker: "Narrador",
         text:
-          "Si estuvieras parado ahi con ellos, tal vez tambien habrias hablado mas bajito: la vista pedia cuidado.",
+          "Si hubieras estado ahí con ellos, tal vez también habrías hablado más bajito: la vista pedía cuidado.",
         actors: {
           alexis: { x: 354, y: 376, mood: "soft", facing: "right", scale: 0.44, pose: "back", visible: false },
           kiara: { x: 500, y: 376, mood: "soft", facing: "left", scale: 0.44, pose: "back", visible: false }
         },
         props: [
           { texture: "scene-valley-cima-close", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-valley-back-close", x: 480, y: 520, scale: 0.54, depth: 32, float: 0.35 }
+          { texture: "couple-valley-back-close", x: 480, y: 516, scale: 0.6, depth: 32, float: 0.22 }
         ],
-        camera: { zoom: 1.03, x: 488, y: 346, duration: 1200, driftX: 24, driftY: 6, driftSpeed: 0.26 },
+        camera: { zoom: 1.06, x: 488, y: 340, duration: 1200, driftX: 16, driftY: 4, driftSpeed: 0.24 },
         cinematic: { letterbox: 22, warmth: 0.05, vignette: 0.07 }
       },
       {
         id: "valley-land-joke",
         location: "valley",
         speaker: "Alexis",
-        text: "Un dia deberiamos quedarnos con un terrenito por aqui.",
+        text: "Un día deberíamos quedarnos con un terrenito por aquí.",
         actors: {
-          alexis: { x: 398, y: 454, mood: "talking", expression: "flirty-shy", facing: "right", scale: 0.52 },
-          kiara: { x: 550, y: 452, mood: "thinking", expression: "thinking", facing: "left", scale: 0.52 }
+          alexis: { x: 398, y: 454, mood: "talking", expression: "flirty-shy", facing: "right", scale: 0.56 },
+          kiara: { x: 550, y: 452, mood: "thinking", expression: "thinking", facing: "left", scale: 0.56 }
         },
         props: [{ texture: "scene-valley-cima-close", x: 480, y: 540, scale: 1, depth: 23 }],
-        camera: { zoom: 1.14, x: 486, y: 322, duration: 840, driftX: 2, driftY: 1, driftSpeed: 0.42 },
+        camera: { zoom: 1.18, x: 486, y: 318, duration: 840, driftX: 1.4, driftY: 0.8, driftSpeed: 0.38 },
         cinematic: { letterbox: 18, warmth: 0.04 }
       },
       {
@@ -813,47 +822,47 @@ export const chapters: Chapter[] = [
         location: "valley",
         speaker: "Narrador",
         text:
-          "La idea nacio como juego, pero por un segundo sonaba tan real que dio un poquito de miedo responder.",
+          "La idea nació como juego, pero por un segundo sonó tan real que dio un poquito de miedo responder.",
         actors: {
-          alexis: { x: 404, y: 454, mood: "shy", expression: "looking-away-shy", facing: "right", scale: 0.54 },
-          kiara: { x: 540, y: 452, mood: "shy", expression: "close-nervous", facing: "left", scale: 0.54 }
+          alexis: { x: 404, y: 454, mood: "shy", expression: "looking-away-shy", facing: "right", scale: 0.57 },
+          kiara: { x: 540, y: 452, mood: "shy", expression: "close-nervous", facing: "left", scale: 0.57 }
         },
         props: [{ texture: "scene-valley-cima-close", x: 480, y: 540, scale: 1, depth: 23 }],
-        camera: { zoom: 1.18, x: 482, y: 320, duration: 940, driftX: 2, driftY: 1, driftSpeed: 0.38 },
+        camera: { zoom: 1.22, x: 482, y: 316, duration: 940, driftX: 1.2, driftY: 0.8, driftSpeed: 0.34 },
         cinematic: { letterbox: 22, warmth: 0.05, vignette: 0.05 }
       },
       {
         id: "valley-house",
         location: "valley",
         speaker: "Kiara",
-        text: "Me gustaria una casita con jardin. Con plantitas. Un lugar bonito donde el dia empiece tranquilo.",
+        text: "Me gustaría una casita con jardín. Con plantitas. Un lugar bonito donde el día empiece tranquilo.",
         actors: {
-          alexis: { x: 398, y: 454, mood: "thinking", expression: "soft-love", facing: "right", scale: 0.52 },
-          kiara: { x: 550, y: 452, mood: "talking", expression: "gentle-smile", facing: "left", scale: 0.52 }
+          alexis: { x: 398, y: 454, mood: "thinking", expression: "soft-love", facing: "right", scale: 0.56 },
+          kiara: { x: 550, y: 452, mood: "talking", expression: "gentle-smile", facing: "left", scale: 0.56 }
         },
         props: [{ texture: "scene-valley-cima-close", x: 480, y: 540, scale: 1, depth: 23 }],
-        camera: { zoom: 1.14, x: 486, y: 322, duration: 900, driftX: 3, driftY: 1, driftSpeed: 0.4 },
+        camera: { zoom: 1.18, x: 486, y: 318, duration: 900, driftX: 2, driftY: 0.8, driftSpeed: 0.36 },
         cinematic: { letterbox: 20, warmth: 0.04 },
         choices: [
           {
             id: "house-valley",
             label: "Una casita con vista al valle.",
             resultSpeaker: "Alexis",
-            resultText: "Una casita con jardin y vista al valle. Suena como un buen plan para algun dia.",
-            stat: { id: "sueno", label: "Sueno compartido" }
+            resultText: "Una casita con jardín y vista al valle. Suena como un buen plan para algún día.",
+            stat: { id: "sueno", label: "Sueño compartido" }
           },
           {
             id: "house-bike",
             label: "Y una moto morada afuera.",
             resultSpeaker: "Alexis",
-            resultText: "Y una moto morada estacionada afuera, para que nadie olvide quien eligio el color.",
+            resultText: "Y una moto morada estacionada afuera, para que nadie olvide quién eligió el color.",
             stat: { id: "ternura", label: "Ternura" }
           },
           {
             id: "house-you",
-            label: "Mientras estes tu, estaria bien.",
+            label: "Mientras estés tú, estaría bien.",
             resultSpeaker: "Alexis",
-            resultText: "Mientras estes tu, cualquier lugar se sentiria bonito. Cursi, si. Pero a veces la verdad sale asi.",
+            resultText: "Mientras estés tú, cualquier lugar se sentiría bonito. Cursi, sí. Pero a veces la verdad sale así.",
             stat: { id: "nervios", label: "Nervios" }
           }
         ]
@@ -862,78 +871,78 @@ export const chapters: Chapter[] = [
         id: "valley-garden-detail",
         location: "valley",
         speaker: "Kiara",
-        text: "Con flores, pastito, y un jardin bonito. No enorme, pero si cuidado.",
+        text: "Con flores, pastito y un jardín bonito. No enorme, pero sí cuidado.",
         actors: {
-          alexis: { x: 398, y: 454, mood: "soft", expression: "soft-love", facing: "right", scale: 0.52 },
-          kiara: { x: 550, y: 452, mood: "talking", expression: "caring", facing: "left", scale: 0.52 }
+          alexis: { x: 398, y: 454, mood: "soft", expression: "soft-love", facing: "right", scale: 0.56 },
+          kiara: { x: 550, y: 452, mood: "talking", expression: "caring", facing: "left", scale: 0.56 }
         },
         props: [{ texture: "scene-valley-cima-close", x: 480, y: 540, scale: 1, depth: 23 }],
-        camera: { zoom: 1.15, x: 486, y: 322, duration: 880, driftX: 2, driftY: 1, driftSpeed: 0.38 },
+        camera: { zoom: 1.19, x: 486, y: 318, duration: 880, driftX: 1.4, driftY: 0.8, driftSpeed: 0.34 },
         cinematic: { letterbox: 20, warmth: 0.05 }
       },
       {
         id: "valley-could",
         location: "valley",
         speaker: "Kiara",
-        text: "Podriamos? Aunque sea imaginarlo por ahora.",
+        text: "¿Podríamos? Aunque sea imaginarlo por ahora.",
         actors: {
-          alexis: { x: 410, y: 454, mood: "shy", expression: "looking-away-shy", facing: "right", scale: 0.55 },
-          kiara: { x: 540, y: 452, mood: "shy", expression: "looking-down-soft", facing: "left", scale: 0.55 }
+          alexis: { x: 410, y: 454, mood: "shy", expression: "looking-away-shy", facing: "right", scale: 0.58 },
+          kiara: { x: 540, y: 452, mood: "shy", expression: "looking-down-soft", facing: "left", scale: 0.58 }
         },
         props: [{ texture: "scene-valley-cima-close", x: 480, y: 540, scale: 1, depth: 23 }],
-        camera: { zoom: 1.22, x: 486, y: 320, duration: 1000, driftX: 1, driftY: 1, driftSpeed: 0.32 },
-        cinematic: { letterbox: 26, warmth: 0.06, vignette: 0.08, heartbeat: 0.28, whisper: "por un segundo, el futuro se acerco" }
+        camera: { zoom: 1.26, x: 486, y: 314, duration: 1000, driftX: 0.8, driftY: 0.6, driftSpeed: 0.28 },
+        cinematic: { letterbox: 26, warmth: 0.06, vignette: 0.08, hideHud: true, whisper: "por un segundo, el futuro se acercó" }
       },
       {
         id: "valley-someday",
         location: "valley",
         speaker: "Alexis",
-        text: "Si. Algun dia. Y si no es aqui, en algun lugar que se sienta igual de nuestro.",
+        text: "Sí. Algún día. Y si no es aquí, en algún lugar que se sienta igual de nuestro.",
         actors: {
-          alexis: { x: 412, y: 454, mood: "shy", expression: "after-kiss-shy", facing: "right", scale: 0.55 },
-          kiara: { x: 538, y: 452, mood: "shy", expression: "after-kiss-blush", facing: "left", scale: 0.55 }
+          alexis: { x: 412, y: 454, mood: "talking", expression: "flirty-shy", facing: "right", scale: 0.58 },
+          kiara: { x: 538, y: 452, mood: "shy", expression: "lean-in", facing: "left", scale: 0.58 }
         },
         props: [{ texture: "scene-valley-cima-close", x: 480, y: 540, scale: 1, depth: 23 }],
         memory: {
           id: "garden-house",
-          label: "La casita con jardin",
-          text: "En la cima del valle, imaginaron una casa pequena, con jardin y un futuro que sonaba demasiado bonito.",
+          label: "La casita con jardín",
+          text: "En la cima del valle, imaginaron una casa pequeña, con jardín y un futuro que sonaba demasiado bonito.",
           x: 706,
           y: 250
         },
-        camera: { zoom: 1.22, x: 486, y: 320, duration: 1100, driftX: 1, driftY: 1, driftSpeed: 0.3 },
-        cinematic: { letterbox: 28, warmth: 0.08, vignette: 0.09, heartbeat: 0.34, whisper: "lo dijo bajito" }
+        camera: { zoom: 1.26, x: 486, y: 314, duration: 1100, driftX: 0.8, driftY: 0.6, driftSpeed: 0.26 },
+        cinematic: { letterbox: 28, warmth: 0.08, vignette: 0.09, hideHud: true, whisper: "lo dijo como promesa" }
       },
       {
         id: "valley-silence-after-dream",
         location: "valley",
         speaker: "Narrador",
-        text: "No prometieron nada. Pero el valle guardo la frase como una semilla.",
+        text: "No prometieron nada. Pero el valle guardó la frase como una semilla.",
         actors: {
           alexis: { x: 338, y: 360, mood: "soft", facing: "right", scale: 0.42, visible: false },
           kiara: { x: 510, y: 360, mood: "soft", facing: "left", scale: 0.42, visible: false }
         },
         props: [
           { texture: "scene-valley-cima-close", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-valley-back-close", x: 480, y: 520, scale: 0.54, depth: 32, float: 0.35 }
+          { texture: "couple-valley-back-close", x: 480, y: 516, scale: 0.6, depth: 32, float: 0.22 }
         ],
-        camera: { zoom: 1.06, x: 474, y: 346, duration: 1100, driftX: 4, driftY: 2, driftSpeed: 0.28 },
-        cinematic: { letterbox: 22, warmth: 0.05, vignette: 0.06 }
+        camera: { zoom: 1.08, x: 474, y: 340, duration: 1100, driftX: 3, driftY: 1.5, driftSpeed: 0.24 },
+        cinematic: { letterbox: 22, warmth: 0.05, vignette: 0.06, hideHud: true }
       },
       {
         id: "downhill",
         location: "ravine",
         speaker: "Narrador",
-        text: "Bajaron por la quebrada. Tierra, pasto y un silencio que nadie queria romper.",
+        text: "Bajaron por la quebrada. Tierra, pasto y un silencio que ninguno quería romper.",
         actors: {
           alexis: { x: 330, y: 382, mood: "walk", facing: "right", visible: false },
           kiara: { x: 470, y: 382, mood: "walk", facing: "right", visible: false }
         },
         props: [
           { texture: "scene-ravine-path-down", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-walking-back-03", x: 482, y: 522, scale: 0.5, depth: 32, float: 0.35 }
+          { texture: "couple-walking-back-03", x: 482, y: 516, scale: 0.56, depth: 32, float: 0.25 }
         ],
-        camera: { zoom: 1, x: 502, y: 348, duration: 1200, driftX: 22, driftY: 5, driftSpeed: 0.32 },
+        camera: { zoom: 1.06, x: 502, y: 342, duration: 1200, driftX: 15, driftY: 3.6, driftSpeed: 0.3 },
         cinematic: {
           letterbox: 18,
           warmth: 0.03,
@@ -945,32 +954,32 @@ export const chapters: Chapter[] = [
         id: "downhill-careful",
         location: "ravine",
         speaker: "Kiara",
-        text: "Cuidado por ahi.",
+        text: "Cuidado por ahí.",
         actors: {
           alexis: { x: 366, y: 378, mood: "walk", facing: "right", visible: false },
           kiara: { x: 524, y: 378, mood: "walk", facing: "right", visible: false }
         },
         props: [
           { texture: "scene-ravine-path-down", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-walking-back-02", x: 482, y: 522, scale: 0.5, depth: 32, float: 0.35 }
+          { texture: "couple-walking-back-02", x: 482, y: 516, scale: 0.56, depth: 32, float: 0.25 }
         ],
-        camera: { zoom: 1.08, x: 494, y: 348, duration: 900, driftX: 8, driftY: 3, driftSpeed: 0.45 },
+        camera: { zoom: 1.1, x: 494, y: 342, duration: 900, driftX: 6, driftY: 2.3, driftSpeed: 0.4 },
         cinematic: { letterbox: 18, warmth: 0.03, vignette: 0.05 }
       },
       {
         id: "downhill-response",
         location: "ravine",
         speaker: "Alexis",
-        text: "Yo? Todo bajo control.",
+        text: "¿Yo? Todo bajo control.",
         actors: {
           alexis: { x: 366, y: 378, mood: "walk", facing: "right", visible: false },
           kiara: { x: 524, y: 378, mood: "walk", facing: "right", visible: false }
         },
         props: [
           { texture: "scene-ravine-path-down", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-walking-back-04", x: 482, y: 522, scale: 0.5, depth: 32, float: 0.35 }
+          { texture: "couple-walking-back-04", x: 482, y: 516, scale: 0.56, depth: 32, float: 0.25 }
         ],
-        camera: { zoom: 1.09, x: 494, y: 348, duration: 760, driftX: 5, driftY: 2, driftSpeed: 0.5 },
+        camera: { zoom: 1.11, x: 494, y: 342, duration: 760, driftX: 4, driftY: 1.6, driftSpeed: 0.44 },
         cinematic: { letterbox: 18, warmth: 0.03, shake: 0.001, shakeDuration: 140 }
       },
       {
@@ -984,38 +993,38 @@ export const chapters: Chapter[] = [
         },
         props: [
           { texture: "scene-ravine-path-down", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-walking-back-03", x: 482, y: 522, scale: 0.5, depth: 32, float: 0.35 }
+          { texture: "couple-walking-back-03", x: 482, y: 516, scale: 0.56, depth: 32, float: 0.25 }
         ],
-        camera: { zoom: 1.09, x: 494, y: 348, duration: 860, driftX: 5, driftY: 2, driftSpeed: 0.44 },
+        camera: { zoom: 1.11, x: 494, y: 342, duration: 860, driftX: 4, driftY: 1.6, driftSpeed: 0.4 },
         cinematic: { letterbox: 18, warmth: 0.03, vignette: 0.05 }
       },
       {
         id: "she-like-sky",
         location: "ravine",
         speaker: "Narrador",
-        text: "Cuando Alexis la miraba, Kiara parecia cielo: calma, nervios y belleza en un solo lugar.",
+        text: "Cuando Alexis la miraba, Kiara parecía cielo: calma, nervios y belleza en un solo lugar.",
         actors: {
-          alexis: { x: 392, y: 454, mood: "shy", expression: "soft-love", facing: "right", scale: 0.52 },
-          kiara: { x: 544, y: 452, mood: "shy", expression: "looking-away-shy", facing: "left", scale: 0.52 }
+          alexis: { x: 392, y: 454, mood: "shy", expression: "soft-love", facing: "right", scale: 0.56 },
+          kiara: { x: 544, y: 452, mood: "shy", expression: "looking-away-shy", facing: "left", scale: 0.56 }
         },
         props: [{ texture: "scene-ravine-path-down", x: 480, y: 540, scale: 1, depth: 23 }],
-        camera: { zoom: 1.16, x: 470, y: 322, duration: 1200, driftX: 2, driftY: 1, driftSpeed: 0.34 },
+        camera: { zoom: 1.2, x: 470, y: 318, duration: 1200, driftX: 1.2, driftY: 0.8, driftSpeed: 0.3 },
         cinematic: { letterbox: 24, warmth: 0.06, vignette: 0.08 }
       },
       {
         id: "ravine-reader-step",
         location: "ravine",
         speaker: "Narrador",
-        text: "Y tu tambien habrias bajado mas lento. Ese tramo pedia cuidado.",
+        text: "Y tú también habrías bajado más lento. Ese tramo pedía cuidado.",
         actors: {
           alexis: { x: 366, y: 378, mood: "walk", facing: "right", visible: false },
           kiara: { x: 524, y: 378, mood: "walk", facing: "right", visible: false }
         },
         props: [
           { texture: "scene-ravine-path-down", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-walking-back-04", x: 482, y: 522, scale: 0.5, depth: 32, float: 0.35 }
+          { texture: "couple-walking-back-04", x: 482, y: 516, scale: 0.56, depth: 32, float: 0.25 }
         ],
-        camera: { zoom: 1.04, x: 500, y: 348, duration: 1300, driftX: 18, driftY: 5, driftSpeed: 0.26 },
+        camera: { zoom: 1.08, x: 500, y: 342, duration: 1300, driftX: 12, driftY: 3.6, driftSpeed: 0.24 },
         cinematic: { letterbox: 20, warmth: 0.04, vignette: 0.06 }
       },
       {
@@ -1023,22 +1032,23 @@ export const chapters: Chapter[] = [
         location: "river",
         speaker: "Narrador",
         text:
-          "Entre cultivos de frutas llegaron a la orilla del rio. El agua sonaba tranquila, como si supiera guardar secretos bonitos.",
+          "Entre cultivos de frutas llegaron a la orilla del río. El agua sonaba tranquila, como si supiera guardar secretos bonitos.",
         actors: {
           alexis: { x: 326, y: 378, mood: "walk", facing: "right", pose: "walking-side", visible: false },
           kiara: { x: 498, y: 378, mood: "happy", facing: "right", pose: "walking-side", visible: false }
         },
         props: [
           { texture: "scene-river-picnic-spot", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-walking-side-04", x: 486, y: 520, scale: 0.48, depth: 32, float: 0.35 }
+          { texture: "couple-walking-side-04", x: 486, y: 516, scale: 0.54, depth: 32, float: 0.25 }
         ],
-        camera: { zoom: 1, x: 486, y: 348, duration: 1400, driftX: 24, driftY: 6, driftSpeed: 0.24 },
+        camera: { zoom: 1.06, x: 486, y: 342, duration: 1400, driftX: 16, driftY: 4.2, driftSpeed: 0.22 },
         cinematic: {
           letterbox: 18,
           warmth: 0.04,
           vignette: 0.04,
-          locationCard: { title: "Rio", subtitle: "donde se quedan los recuerdos" },
-          bloom: 0.05
+          locationCard: { title: "Río", subtitle: "donde se quedan los recuerdos" },
+          bloom: 0.05,
+          godrays: 0.42
         },
         pace: "slow"
       },
@@ -1047,26 +1057,26 @@ export const chapters: Chapter[] = [
         location: "river",
         speaker: "Narrador",
         text:
-          "El rio no hacia ruido fuerte. Sonaba como una conversacion bajita, de esas que no quieren interrumpir a nadie.",
+          "El río no hacía ruido fuerte. Sonaba como una conversación bajita, de esas que no quieren interrumpir a nadie.",
         actors: {
-          alexis: { x: 384, y: 454, mood: "soft", expression: "soft-love", facing: "right", scale: 0.5 },
-          kiara: { x: 556, y: 452, mood: "happy", expression: "gentle-smile", facing: "left", scale: 0.5 }
+          alexis: { x: 384, y: 454, mood: "soft", expression: "soft-love", facing: "right", scale: 0.55 },
+          kiara: { x: 556, y: 452, mood: "happy", expression: "gentle-smile", facing: "left", scale: 0.56 }
         },
         props: [{ texture: "scene-river-picnic-spot", x: 480, y: 540, scale: 1, depth: 23 }],
-        camera: { zoom: 1.1, x: 480, y: 324, duration: 1200, driftX: 8, driftY: 3, driftSpeed: 0.3 },
+        camera: { zoom: 1.14, x: 480, y: 318, duration: 1200, driftX: 5, driftY: 2, driftSpeed: 0.28 },
         cinematic: { letterbox: 20, warmth: 0.04, vignette: 0.05 }
       },
       {
         id: "river-sit-down",
         location: "river",
         speaker: "Kiara",
-        text: "Sentemonos aqui un ratito.",
+        text: "Sentémonos aquí un ratito.",
         actors: {
-          alexis: { x: 384, y: 454, mood: "soft", expression: "soft-love", facing: "right", scale: 0.5 },
-          kiara: { x: 556, y: 452, mood: "talking", expression: "caring", facing: "left", scale: 0.5 }
+          alexis: { x: 384, y: 454, mood: "soft", expression: "soft-love", facing: "right", scale: 0.55 },
+          kiara: { x: 556, y: 452, mood: "happy", expression: "gentle-smile", facing: "left", scale: 0.56 }
         },
         props: [{ texture: "scene-river-picnic-spot", x: 480, y: 540, scale: 1, depth: 23 }],
-        camera: { zoom: 1.12, x: 480, y: 324, duration: 900, driftX: 4, driftY: 2, driftSpeed: 0.34 },
+        camera: { zoom: 1.16, x: 480, y: 318, duration: 900, driftX: 3, driftY: 1.4, driftSpeed: 0.32 },
         cinematic: { letterbox: 20, warmth: 0.04, vignette: 0.05 }
       },
       {
@@ -1074,21 +1084,20 @@ export const chapters: Chapter[] = [
         location: "river",
         speaker: "Narrador",
         text:
-          "Se sentaron cerca, no demasiado. Lo suficiente para que el silencio tuviera calor y para que Alexis cuidara hasta como respiraba.",
+          "Se sentaron cerca, no demasiado. Lo suficiente para que el silencio tuviera calor y para que Alexis cuidara hasta cómo respiraba.",
         actors: {
           alexis: { x: 328, y: 378, mood: "soft", facing: "right", visible: false },
           kiara: { x: 532, y: 378, mood: "soft", facing: "left", visible: false }
         },
         props: [
           { texture: "scene-river-picnic-spot", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-river-sitting-normal", x: 482, y: 520, scale: 0.58, depth: 32, float: 0.25 }
+          { texture: "couple-river-sitting-normal", x: 482, y: 514, scale: 0.64, depth: 32, float: 0.18 }
         ],
-        camera: { zoom: 1.08, x: 484, y: 360, duration: 1100, driftX: 4, driftY: 2, driftSpeed: 0.32 },
+        camera: { zoom: 1.11, x: 484, y: 354, duration: 1100, driftX: 3, driftY: 1.4, driftSpeed: 0.28 },
         cinematic: {
           letterbox: 24,
           warmth: 0.05,
           vignette: 0.07,
-          heartbeat: 0.3,
           intimate: true,
           whisper: "respira despacio"
         },
@@ -1099,39 +1108,39 @@ export const chapters: Chapter[] = [
         location: "river",
         speaker: "Narrador",
         text:
-          "Si hubieras estado ahi, habrias entendido por que nadie tenia prisa: el rio, ellos y hasta el aire iban despacio.",
+          "Si hubieras estado ahí, habrías entendido por qué nadie tenía prisa: el río, ellos y hasta el aire iban despacio.",
         actors: {
           alexis: { x: 328, y: 378, mood: "soft", facing: "right", visible: false },
           kiara: { x: 532, y: 378, mood: "soft", facing: "left", visible: false }
         },
         props: [
           { texture: "scene-river-picnic-spot", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-river-sitting-normal", x: 482, y: 520, scale: 0.58, depth: 32, float: 0.25 }
+          { texture: "couple-river-sitting-normal", x: 482, y: 514, scale: 0.64, depth: 32, float: 0.18 }
         ],
-        camera: { zoom: 1.05, x: 486, y: 358, duration: 1300, driftX: 10, driftY: 4, driftSpeed: 0.25 },
+        camera: { zoom: 1.08, x: 486, y: 354, duration: 1300, driftX: 7, driftY: 2.8, driftSpeed: 0.23 },
         cinematic: { letterbox: 22, warmth: 0.05, vignette: 0.06 }
       },
       {
         id: "river-snacks",
         location: "river",
         speaker: "Kiara",
-        text: "Traje gomitas. Y este vasito con cereal y yogurt. Por si nos daba hambre.",
+        text: "Traje gomitas y este vasito con cereal y yogurt. Por si nos daba hambre.",
         actors: {
           alexis: { x: 336, y: 378, mood: "surprised", facing: "right", visible: false },
           kiara: { x: 540, y: 378, mood: "talking", facing: "left", visible: false }
         },
         props: [
           { texture: "scene-river-picnic-spot", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-river-sitting-snacks", x: 482, y: 520, scale: 0.58, depth: 32, float: 0.25 }
+          { texture: "couple-river-sitting-snacks", x: 482, y: 514, scale: 0.64, depth: 32, float: 0.18 }
         ],
         memory: {
           id: "river-snacks",
-          label: "Gomitas junto al rio",
-          text: "No hubo mantel ni plan perfecto. Solo gomitas, cereal con yogurt y el rio acompanando.",
+          label: "Gomitas junto al río",
+          text: "No hubo mantel ni plan perfecto. Solo gomitas, cereal con yogurt y el río acompañando.",
           x: 712,
           y: 312
         },
-        camera: { zoom: 1.1, x: 480, y: 362, duration: 900, driftX: 4, driftY: 2, driftSpeed: 0.35 },
+        camera: { zoom: 1.13, x: 480, y: 356, duration: 900, driftX: 3, driftY: 1.4, driftSpeed: 0.32 },
         cinematic: { letterbox: 20, warmth: 0.05, vignette: 0.05 }
       },
       {
@@ -1139,16 +1148,16 @@ export const chapters: Chapter[] = [
         location: "river",
         speaker: "Narrador",
         text:
-          "El picnic era improvisado, pero tenia algo que ningun plan caro compra: parecia pensado por ella.",
+          "El picnic era improvisado, pero tenía algo que ningún plan caro compra: parecía pensado por ella.",
         actors: {
           alexis: { x: 336, y: 378, mood: "surprised", facing: "right", visible: false },
           kiara: { x: 540, y: 378, mood: "talking", facing: "left", visible: false }
         },
         props: [
           { texture: "scene-river-picnic-spot", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-river-sitting-snacks", x: 482, y: 520, scale: 0.58, depth: 32, float: 0.25 }
+          { texture: "couple-river-sitting-snacks", x: 482, y: 514, scale: 0.64, depth: 32, float: 0.18 }
         ],
-        camera: { zoom: 1.1, x: 480, y: 362, duration: 900, driftX: 4, driftY: 2, driftSpeed: 0.34 },
+        camera: { zoom: 1.13, x: 480, y: 356, duration: 900, driftX: 3, driftY: 1.4, driftSpeed: 0.3 },
         cinematic: { letterbox: 20, warmth: 0.05, vignette: 0.05 },
         choices: [
           {
@@ -1162,15 +1171,15 @@ export const chapters: Chapter[] = [
             id: "snacks-joke",
             label: "Bromear con que vino preparada.",
             resultSpeaker: "Alexis",
-            resultText: "Tu si viniste preparada. Yo vine con nervios y cero estrategia.",
+            resultText: "Tú sí viniste preparada. Yo vine con nervios y cero estrategia.",
             stat: { id: "nervios", label: "Nervios" }
           },
           {
             id: "snacks-share",
             label: "Pedir una gomita para compartir.",
             resultSpeaker: "Narrador",
-            resultText: "Compartieron las gomitas como si fuera un ritual pequeno. Dulce, simple, peligroso para el corazon.",
-            stat: { id: "sueno", label: "Sueno compartido" }
+            resultText: "Compartieron las gomitas como si fuera un ritual pequeño. Dulce, simple, peligroso para el corazón.",
+            stat: { id: "sueno", label: "Sueño compartido" }
           }
         ]
       },
@@ -1178,16 +1187,16 @@ export const chapters: Chapter[] = [
         id: "river-tease",
         location: "river",
         speaker: "Kiara",
-        text: "Alguien tenia que venir preparada. Tu ni llegaste temprano.",
+        text: "Alguien tenía que venir preparada. Tú ni llegaste temprano.",
         actors: {
           alexis: { x: 338, y: 378, mood: "nervous", facing: "right", visible: false },
           kiara: { x: 542, y: 378, mood: "laughing", facing: "left", visible: false }
         },
         props: [
           { texture: "scene-river-picnic-spot", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-river-sitting-snacks", x: 482, y: 520, scale: 0.58, depth: 32, float: 0.25 }
+          { texture: "couple-river-sitting-snacks", x: 482, y: 514, scale: 0.64, depth: 32, float: 0.18 }
         ],
-        camera: { zoom: 1.12, x: 480, y: 362, duration: 760, driftX: 3, driftY: 1, driftSpeed: 0.44 },
+        camera: { zoom: 1.15, x: 480, y: 356, duration: 760, driftX: 2.4, driftY: 1, driftSpeed: 0.4 },
         cinematic: { letterbox: 18, warmth: 0.05, shake: 0.001, shakeDuration: 120 }
       },
       {
@@ -1195,23 +1204,23 @@ export const chapters: Chapter[] = [
         location: "river",
         speaker: "Narrador",
         text:
-          "Alexis intentaba escucharla, pero cada vez que la miraba se le desordenaba la frase siguiente y se le ordenaba el corazon.",
+          "Alexis intentaba escucharla, pero cada vez que la miraba se le desordenaba la frase siguiente y se le ordenaba el corazón.",
         actors: {
           alexis: { x: 338, y: 378, mood: "nervous", facing: "right", visible: false },
           kiara: { x: 542, y: 378, mood: "shy", facing: "left", visible: false }
         },
         props: [
           { texture: "scene-river-picnic-spot", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-river-sitting-close", x: 482, y: 520, scale: 0.58, depth: 32, float: 0.2 }
+          { texture: "couple-river-sitting-close", x: 482, y: 514, scale: 0.66, depth: 32, float: 0.14 }
         ],
-        camera: { zoom: 1.16, x: 478, y: 364, duration: 1200, driftX: 2, driftY: 1, driftSpeed: 0.3 },
+        camera: { zoom: 1.19, x: 478, y: 358, duration: 1200, driftX: 1.2, driftY: 0.8, driftSpeed: 0.26 },
         cinematic: {
           letterbox: 24,
           warmth: 0.06,
           vignette: 0.08,
-          heartbeat: 0.45,
           intimate: true,
-          whisper: "no la apartes la mirada"
+          hideHud: true,
+          whisper: "no apartes la mirada"
         },
         pace: "slow"
       },
@@ -1220,22 +1229,22 @@ export const chapters: Chapter[] = [
         location: "river",
         speaker: "Narrador",
         text:
-          "No queria estar en ningun otro lugar. Ni en su casa, ni en otra ciudad, ni en ningun universo donde ella no estuviera sentada ahi.",
+          "No quería estar en ningún otro lugar. Ni en su casa, ni en otra ciudad, ni en ningún universo donde ella no estuviera sentada ahí.",
         actors: {
           alexis: { x: 338, y: 378, mood: "soft", facing: "right", visible: false },
           kiara: { x: 542, y: 378, mood: "soft", facing: "left", visible: false }
         },
         props: [
           { texture: "scene-river-picnic-spot", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-river-sitting-close", x: 482, y: 520, scale: 0.58, depth: 32, float: 0.2 }
+          { texture: "couple-river-sitting-close", x: 482, y: 514, scale: 0.66, depth: 32, float: 0.14 }
         ],
-        camera: { zoom: 1.18, x: 478, y: 366, duration: 1250, driftX: 2, driftY: 1, driftSpeed: 0.28 },
+        camera: { zoom: 1.21, x: 478, y: 360, duration: 1250, driftX: 1.2, driftY: 0.8, driftSpeed: 0.24 },
         cinematic: {
           letterbox: 26,
           warmth: 0.07,
           vignette: 0.09,
-          heartbeat: 0.55,
           intimate: true,
+          hideHud: true,
           bloom: 0.05
         },
         pace: "slow"
@@ -1245,22 +1254,22 @@ export const chapters: Chapter[] = [
         location: "river",
         speaker: "Narrador",
         text:
-          "El mundo les dejo un espacio pequeno. No para separarlos, sino para que ambos decidieran, sin apuro, si querian cruzarlo.",
+          "El mundo les dejó un espacio pequeño. No para separarlos, sino para que ambos decidieran, sin apuro, si querían cruzarlo.",
         actors: {
           alexis: { x: 338, y: 378, mood: "soft", facing: "right", visible: false },
           kiara: { x: 542, y: 378, mood: "soft", facing: "left", visible: false }
         },
         props: [
           { texture: "scene-river-picnic-spot", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-river-sitting-close", x: 482, y: 520, scale: 0.58, depth: 32, float: 0.2 }
+          { texture: "couple-river-sitting-close", x: 482, y: 514, scale: 0.66, depth: 32, float: 0.14 }
         ],
-        camera: { zoom: 1.2, x: 478, y: 368, duration: 1300, driftX: 1, driftY: 1, driftSpeed: 0.24 },
+        camera: { zoom: 1.23, x: 478, y: 362, duration: 1300, driftX: 0.75, driftY: 0.6, driftSpeed: 0.21 },
         cinematic: {
           letterbox: 28,
           warmth: 0.07,
           vignette: 0.1,
-          heartbeat: 0.6,
           intimate: true,
+          hideHud: true,
           bloom: 0.06,
           whisper: "no apartes la mirada"
         },
@@ -1270,25 +1279,25 @@ export const chapters: Chapter[] = [
         id: "river-silence",
         location: "river",
         speaker: "Narrador",
-        text: "El rio sonaba igual, pero algo habia cambiado entre ellos: el silencio ya no incomodaba, acercaba.",
+        text: "El río sonaba igual, pero algo había cambiado entre ellos: el silencio ya no incomodaba, acercaba.",
         actors: {
           alexis: { x: 350, y: 378, mood: "nervous", facing: "right", visible: false },
           kiara: { x: 524, y: 378, mood: "shy", facing: "left", visible: false }
         },
         props: [
-          { texture: "scene-river-close-faces", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-river-sitting-close", x: 482, y: 520, scale: 0.58, depth: 32, float: 0.2 }
+          { texture: "scene-river-picnic-spot", x: 480, y: 540, scale: 1, depth: 23 },
+          { texture: "couple-river-sitting-close", x: 482, y: 514, scale: 0.66, depth: 32, float: 0.14 }
         ],
-        camera: { zoom: 1.22, x: 478, y: 370, duration: 1300, driftX: 1, driftY: 1, driftSpeed: 0.23 },
+        camera: { zoom: 1.25, x: 478, y: 364, duration: 1300, driftX: 0.7, driftY: 0.55, driftSpeed: 0.2 },
         cinematic: {
           letterbox: 30,
           warmth: 0.08,
           vignette: 0.11,
-          heartbeat: 0.7,
           intimate: true,
+          hideHud: true,
           bloom: 0.08,
           chromatic: true,
-          magicShift: true,
+          riverMagic: 0.18,
           whisper: "algo bonito estaba por ocurrir"
         },
         pace: "slow"
@@ -1298,26 +1307,27 @@ export const chapters: Chapter[] = [
         location: "river",
         speaker: "Narrador",
         text:
-          "Alexis se acerco apenas. Kiara no se alejo. El rio siguio hablando por los dos, bajito, como pidiendo cuidado.",
+          "Alexis se acercó apenas. Kiara no se alejó. El río siguió hablando por los dos, bajito, como pidiendo cuidado.",
         actors: {
           alexis: { x: 350, y: 378, mood: "nervous", facing: "right", visible: false },
           kiara: { x: 524, y: 378, mood: "shy", facing: "left", visible: false }
         },
         props: [
-          { texture: "scene-river-close-faces", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-almost-kiss-01", x: 480, y: 512, scale: 0.66, depth: 32, float: 0.28 }
+          { texture: "scene-river-picnic-spot", x: 480, y: 540, scale: 1, depth: 23 },
+          { texture: "couple-almost-kiss-01", x: 480, y: 508, scale: 0.74, depth: 32, float: 0.16 }
         ],
-        camera: { zoom: 1.255, x: 478, y: 372, duration: 1600, driftX: 0.45, driftY: 0.45, driftSpeed: 0.18 },
+        camera: { zoom: 1.24, x: 478, y: 360, duration: 1600, driftX: 0.34, driftY: 0.32, driftSpeed: 0.16 },
         cinematic: {
           letterbox: 34,
           warmth: 0.09,
           vignette: 0.12,
-          heartbeat: 0.8,
           intimate: true,
+          hideHud: true,
           bloom: 0.1,
           chromatic: true,
+          riverMagic: 0.28,
           slowmo: 0.18,
-          whisper: "el mundo se hizo pequenito",
+          whisper: "el mundo se hizo pequeñito",
           holdMs: 1300,
           lockInput: true
         },
@@ -1333,18 +1343,20 @@ export const chapters: Chapter[] = [
           kiara: { x: 524, y: 378, mood: "shy", facing: "left", visible: false }
         },
         props: [
-          { texture: "scene-river-close-faces", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-almost-kiss-02", x: 480, y: 512, scale: 0.68, depth: 32, float: 0.28 }
+          { texture: "scene-river-picnic-spot", x: 480, y: 540, scale: 1, depth: 23 },
+          { texture: "couple-almost-kiss-02", x: 480, y: 508, scale: 0.76, depth: 32, float: 0.16 }
         ],
-        camera: { zoom: 1.27, x: 478, y: 373, duration: 1700, driftX: 0.34, driftY: 0.34, driftSpeed: 0.16 },
+        camera: { zoom: 1.25, x: 478, y: 361, duration: 1700, driftX: 0.26, driftY: 0.24, driftSpeed: 0.14 },
         cinematic: {
           letterbox: 36,
           warmth: 0.1,
           vignette: 0.13,
-          heartbeat: 0.88,
           intimate: true,
+          hideDialogue: true,
+          hideHud: true,
           bloom: 0.12,
           chromatic: true,
+          riverMagic: 0.42,
           slowmo: 0.28,
           holdMs: 960,
           persistDialogue: true,
@@ -1362,18 +1374,20 @@ export const chapters: Chapter[] = [
           kiara: { x: 524, y: 378, mood: "shy", facing: "left", visible: false }
         },
         props: [
-          { texture: "scene-river-close-faces", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-almost-kiss-03", x: 480, y: 512, scale: 0.7, depth: 32, float: 0.28 }
+          { texture: "scene-river-picnic-spot", x: 480, y: 540, scale: 1, depth: 23 },
+          { texture: "couple-almost-kiss-03", x: 480, y: 508, scale: 0.78, depth: 32, float: 0.16 }
         ],
-        camera: { zoom: 1.285, x: 478, y: 374, duration: 1750, driftX: 0.28, driftY: 0.28, driftSpeed: 0.14 },
+        camera: { zoom: 1.26, x: 478, y: 362, duration: 1750, driftX: 0.2, driftY: 0.2, driftSpeed: 0.12 },
         cinematic: {
           letterbox: 38,
           warmth: 0.11,
           vignette: 0.14,
-          heartbeat: 0.95,
           intimate: true,
+          hideDialogue: true,
+          hideHud: true,
           bloom: 0.14,
           chromatic: true,
+          riverMagic: 0.56,
           slowmo: 0.45,
           whisper: "...",
           holdMs: 1040,
@@ -1392,18 +1406,20 @@ export const chapters: Chapter[] = [
           kiara: { x: 524, y: 378, mood: "shy", facing: "left", visible: false }
         },
         props: [
-          { texture: "scene-river-close-faces", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-almost-kiss-04", x: 480, y: 512, scale: 0.71, depth: 32, float: 0.24 }
+          { texture: "scene-river-picnic-spot", x: 480, y: 540, scale: 1, depth: 23 },
+          { texture: "couple-almost-kiss-04", x: 480, y: 508, scale: 0.8, depth: 32, float: 0.14 }
         ],
-        camera: { zoom: 1.3, x: 478, y: 375, duration: 1650, driftX: 0.24, driftY: 0.24, driftSpeed: 0.13 },
+        camera: { zoom: 1.27, x: 478, y: 363, duration: 1650, driftX: 0.18, driftY: 0.16, driftSpeed: 0.11 },
         cinematic: {
           letterbox: 40,
           warmth: 0.115,
           vignette: 0.14,
-          heartbeat: 0.95,
           intimate: true,
+          hideDialogue: true,
+          hideHud: true,
           bloom: 0.16,
           chromatic: true,
+          riverMagic: 0.72,
           slowmo: 0.5,
           holdMs: 900,
           persistDialogue: true,
@@ -1422,21 +1438,27 @@ export const chapters: Chapter[] = [
         },
         props: [
           { texture: "scene-river-close-faces", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-kiss-sitting", x: 480, y: 512, scale: 0.72, depth: 32, float: 0.28 }
+          { texture: "couple-kiss-sitting", x: 480, y: 508, scale: 0.82, depth: 32, float: 0.14 }
         ],
-        camera: { zoom: 1.315, x: 478, y: 376, duration: 1750, driftX: 0.2, driftY: 0.2, driftSpeed: 0.12 },
+        camera: { zoom: 1.27, x: 478, y: 364, duration: 2200, driftX: 0.12, driftY: 0.12, driftSpeed: 0.08 },
         cinematic: {
           letterbox: 42,
-          warmth: 0.12,
-          vignette: 0.12,
-          shake: 0.0007,
-          shakeDuration: 180,
-          heartbeat: 0.4,
+          warmth: 0.145,
+          vignette: 0.09,
+          shake: 0.00045,
+          shakeDuration: 140,
+          heartbeat: 0.92,
           intimate: true,
-          bloom: 0.22,
+          hideDialogue: true,
+          hideHud: true,
+          bloom: 0.24,
           chromatic: true,
+          magicShift: true,
+          riverMagic: 1,
           slowmo: 0.55,
-          holdMs: 1500,
+          godrays: 0.5,
+          petals: true,
+          holdMs: 1850,
           persistDialogue: true,
           lockInput: true
         },
@@ -1453,16 +1475,19 @@ export const chapters: Chapter[] = [
         },
         props: [
           { texture: "scene-river-close-faces", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-kiss-sitting", x: 480, y: 512, scale: 0.72, depth: 32, float: 0.28 }
+          { texture: "couple-kiss-sitting", x: 480, y: 508, scale: 0.82, depth: 32, float: 0.14 }
         ],
-        camera: { zoom: 1.328, x: 478, y: 377, duration: 1700, driftX: 0.18, driftY: 0.18, driftSpeed: 0.11 },
+        camera: { zoom: 1.265, x: 478, y: 365, duration: 1700, driftX: 0.13, driftY: 0.13, driftSpeed: 0.09 },
         cinematic: {
           letterbox: 44,
           warmth: 0.13,
           vignette: 0.1,
           intimate: true,
+          hideDialogue: true,
+          hideHud: true,
           bloom: 0.18,
           chromatic: true,
+          riverMagic: 0.92,
           slowmo: 0.4,
           holdMs: 980,
           persistDialogue: true,
@@ -1481,16 +1506,19 @@ export const chapters: Chapter[] = [
         },
         props: [
           { texture: "scene-river-close-faces", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-kiss-sitting", x: 480, y: 512, scale: 0.72, depth: 32, float: 0.28 }
+          { texture: "couple-kiss-sitting", x: 480, y: 508, scale: 0.82, depth: 32, float: 0.14 }
         ],
-        camera: { zoom: 1.34, x: 478, y: 378, duration: 1700, driftX: 0.16, driftY: 0.16, driftSpeed: 0.1 },
+        camera: { zoom: 1.27, x: 478, y: 365, duration: 1700, driftX: 0.12, driftY: 0.12, driftSpeed: 0.08 },
         cinematic: {
           letterbox: 44,
           warmth: 0.14,
           vignette: 0.08,
           intimate: true,
+          hideDialogue: true,
+          hideHud: true,
           bloom: 0.16,
           chromatic: true,
+          riverMagic: 0.82,
           slowmo: 0.32,
           holdMs: 900,
           persistDialogue: true,
@@ -1502,22 +1530,24 @@ export const chapters: Chapter[] = [
         id: "after-kiss",
         location: "river",
         speaker: "Narrador",
-        text: "Cuando se separaron, no hicieron falta palabras. A veces respirar juntito ya es bastante despues de un momento asi.",
+        text: "Cuando se separaron, no hicieron falta palabras. A veces respirar juntito ya es bastante después de un momento así.",
         actors: {
           alexis: { x: 384, y: 378, mood: "shy", facing: "right", visible: false },
           kiara: { x: 526, y: 378, mood: "shy", facing: "left", visible: false }
         },
         props: [
           { texture: "scene-river-picnic-spot", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-post-kiss-shy", x: 480, y: 520, scale: 0.58, depth: 32, float: 0.25 }
+          { texture: "couple-post-kiss-shy", x: 480, y: 514, scale: 0.64, depth: 32, float: 0.16 }
         ],
-        camera: { zoom: 1.22, x: 478, y: 374, duration: 1300, driftX: 1, driftY: 1, driftSpeed: 0.24 },
+        camera: { zoom: 1.2, x: 478, y: 362, duration: 1300, driftX: 0.8, driftY: 0.6, driftSpeed: 0.22 },
         cinematic: {
           letterbox: 30,
           warmth: 0.09,
           vignette: 0.08,
           intimate: true,
+          hideHud: true,
           bloom: 0.08,
+          riverMagic: 0.28,
           whisper: "no hicieron falta palabras"
         },
         pace: "slow"
@@ -1526,23 +1556,24 @@ export const chapters: Chapter[] = [
         id: "chapter-1-end",
         location: "river",
         speaker: "Narrador",
-        text: "Desde ese dia, ese rinconcito junto al rio dejo de ser paisaje. Fue donde el valle los vio imaginar una casa, reir bajito y guardar su primer beso.",
+        text: "Desde ese día, ese rinconcito junto al río dejó de ser paisaje. Fue donde el valle los vio imaginar una casa, reír bajito y guardar su primer beso.",
         actors: {
           alexis: { x: 366, y: 378, mood: "finale", facing: "right", visible: false },
           kiara: { x: 526, y: 378, mood: "finale", facing: "left", visible: false }
         },
         props: [
           { texture: "scene-river-picnic-spot", x: 480, y: 540, scale: 1, depth: 23 },
-          { texture: "couple-post-kiss-shy", x: 480, y: 520, scale: 0.56, depth: 32, float: 0.25 }
+          { texture: "couple-post-kiss-shy", x: 480, y: 514, scale: 0.62, depth: 32, float: 0.16 }
         ],
-        camera: { zoom: 1.04, x: 484, y: 348, duration: 1400, driftX: 12, driftY: 4, driftSpeed: 0.24 },
+        camera: { zoom: 1.08, x: 484, y: 344, duration: 1400, driftX: 8, driftY: 3, driftSpeed: 0.22 },
         cinematic: {
           letterbox: 20,
           warmth: 0.06,
           vignette: 0.05,
           intimate: true,
+          hideHud: true,
           bloom: 0.06,
-          whisper: "fin del capitulo 1"
+          whisper: "fin del capítulo 1"
         },
         pace: "slow",
         completeChapter: true
@@ -1552,15 +1583,15 @@ export const chapters: Chapter[] = [
   {
     id: "chapter-2",
     number: 2,
-    title: "Despues del primer beso",
+    title: "Después del primer beso",
     route: "Noche > Puente > Silencio",
-    lockedTeaser: "Se desbloquea al terminar el capitulo 1.",
+    lockedTeaser: "Proximamente.",
     beats: [
       {
         id: "kiss-placeholder",
         location: "night",
         speaker: "Narrador",
-        text: "Este capitulo se escribira despues con lo que paso cuando el rio dejo de ser el final.",
+        text: "Este capítulo se escribirá después, con lo que pasó cuando el río dejó de ser el final.",
         actors: {
           alexis: { x: 360, y: 378, mood: "soft", facing: "right" },
           kiara: { x: 540, y: 378, mood: "shy", facing: "left" }
@@ -1574,13 +1605,13 @@ export const chapters: Chapter[] = [
     number: 3,
     title: "Primera salida",
     route: "Ciudad > Dulce > Promesa",
-    lockedTeaser: "Se desbloquea al terminar el capitulo 2.",
+    lockedTeaser: "Proximamente.",
     beats: [
       {
         id: "outing-placeholder",
         location: "bosquete",
         speaker: "Narrador",
-        text: "Aqui ira la primera salida con objetos, bromas y pequenas decisiones.",
+        text: "Aquí irá la primera salida con objetos, bromas y pequeñas decisiones.",
         actors: {
           alexis: { x: 350, y: 378, mood: "happy", facing: "right" },
           kiara: { x: 545, y: 378, mood: "happy", facing: "left" }
@@ -1593,14 +1624,14 @@ export const chapters: Chapter[] = [
     id: "chapter-4",
     number: 4,
     title: "Cuarto de recuerdos",
-    route: "Album > Juegos > Final",
-    lockedTeaser: "Se desbloquea al terminar el capitulo 3.",
+    route: "Álbum > Juegos > Final",
+    lockedTeaser: "Proximamente.",
     beats: [
       {
         id: "room-placeholder",
         location: "room",
         speaker: "Ambos",
-        text: "El cuarto sera el album jugable con escenas, minijuegos y finales secretos.",
+        text: "El cuarto será el álbum jugable con escenas, minijuegos y finales secretos.",
         actors: {
           alexis: { x: 360, y: 378, mood: "finale", facing: "right" },
           kiara: { x: 520, y: 378, mood: "finale", facing: "left" }
