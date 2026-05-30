@@ -53,7 +53,7 @@ export class BootScene extends Phaser.Scene {
     });
 
     this.add
-      .text(480, 232, "Capítulo 1", {
+      .text(480, 232, "Una historia pixel", {
         fontFamily: "Courier New",
         fontSize: "18px",
         fontStyle: "bold",
@@ -63,9 +63,9 @@ export class BootScene extends Phaser.Scene {
       .setDepth(5);
 
     this.add
-      .text(480, 262, "Donde el río nos vio", {
+      .text(480, 262, "Hecha para recordar bonito", {
         fontFamily: "Courier New",
-        fontSize: "24px",
+        fontSize: "22px",
         fontStyle: "bold",
         color: "#e79037"
       })
@@ -73,7 +73,7 @@ export class BootScene extends Phaser.Scene {
       .setDepth(5);
 
     this.add
-      .text(480, 304, "Cargando el primer recuerdo...", {
+      .text(480, 304, "Preparando una sorpresa...", {
         fontFamily: "Courier New",
         fontSize: "16px",
         color: "#b7b0a5"
@@ -320,15 +320,17 @@ export class BootScene extends Phaser.Scene {
       repeat: -1
     });
 
-    this.input.once("pointerdown", () => this.enterFromLoading());
-    this.input.keyboard?.once("keydown", () => this.enterFromLoading());
+    this.time.delayedCall(420, () => {
+      this.input.once("pointerdown", () => this.enterFromLoading());
+      this.input.keyboard?.once("keydown", () => this.enterFromLoading());
+    });
   }
 
   private loadingMessageFor(progress: number) {
-    if (progress < 0.22) return "Guardando el frío suave de julio";
-    if (progress < 0.44) return "Preparando el taxi y el hospital";
-    if (progress < 0.68) return "Encendiendo el valle";
-    if (progress < 0.9) return "Acomodando el río";
+    if (progress < 0.22) return "Guardando luces pequeñas";
+    if (progress < 0.44) return "Acomodando recuerdos";
+    if (progress < 0.68) return "Afinando la música";
+    if (progress < 0.9) return "Abriendo la puerta";
     return "Listo para empezar";
   }
 

@@ -49,7 +49,7 @@ export class HomeScene extends Phaser.Scene {
 
   private createHero() {
     this.add
-      .text(70, 40, "CAPÍTULO 1 DISPONIBLE", {
+      .text(70, 40, "PRIMER RECUERDO DISPONIBLE", {
         fontFamily: "Courier New",
         fontSize: "14px",
         fontStyle: "bold",
@@ -88,7 +88,7 @@ export class HomeScene extends Phaser.Scene {
       .text(
         76,
         178,
-        "Empieza el primer recuerdo: taxi, hospital, valle y el camino hasta el río. Los siguientes capítulos quedan guardados para abrirse mes a mes.",
+        "Una historia interactiva sobre una tarde que empezó con nervios y terminó guardándose en un lugar muy especial.",
         {
           fontFamily: "Courier New",
           fontSize: "16px",
@@ -99,7 +99,7 @@ export class HomeScene extends Phaser.Scene {
       )
       .setDepth(3);
 
-    this.createPrimaryButton(76, 264, 310, 62, "ENTRAR AL CAPÍTULO 1", "El río ya está listo", () => {
+    this.createPrimaryButton(76, 264, 310, 62, "ENTRAR AL RECUERDO", "toca para empezar", () => {
       this.startChapter(chapters[0]);
     });
   }
@@ -120,7 +120,7 @@ export class HomeScene extends Phaser.Scene {
       fontStyle: "bold",
       color: "#ffd28a"
     });
-    const copy = this.add.text(18, 84, "Por ahora solo se juega el capítulo 1. Los demás ya están reservados en el selector.", {
+    const copy = this.add.text(18, 84, "Por ahora solo se abre el primer recuerdo. Los demás quedan guardados para más adelante.", {
       fontFamily: "Courier New",
       fontSize: "13px",
       color: "#d8d0c2",
@@ -174,7 +174,7 @@ export class HomeScene extends Phaser.Scene {
       fontStyle: "bold",
       color: unlocked ? "#8fe8ff" : "#8a92a0"
     });
-    const title = this.add.text(16, 42, unlocked ? chapter.title : "Pronto continua", {
+    const title = this.add.text(16, 42, unlocked ? chapter.title : "Pronto continúa", {
       fontFamily: "Courier New",
       fontSize: "15px",
       fontStyle: "bold",
@@ -182,7 +182,7 @@ export class HomeScene extends Phaser.Scene {
       lineSpacing: 2,
       wordWrap: { width: 132 }
     });
-    const route = this.add.text(16, 76, unlocked ? chapter.route : chapter.lockedTeaser, {
+    const route = this.add.text(16, 76, this.chapterCardDescription(unlocked, completed), {
       fontFamily: "Courier New",
       fontSize: "12px",
       color: unlocked ? "#d8d0c2" : "#969faf",
@@ -258,6 +258,15 @@ export class HomeScene extends Phaser.Scene {
   }
 
   private createResetControl() {
+    this.add
+      .text(54, 512, "© Hass Studio 2026 · con amor, Alexis", {
+        fontFamily: "Courier New",
+        fontSize: "10px",
+        color: "#b7b0a5"
+      })
+      .setAlpha(0.72)
+      .setDepth(6);
+
     const reset = this.add
       .text(790, 510, "reiniciar progreso", {
         fontFamily: "Courier New",
@@ -346,6 +355,12 @@ export class HomeScene extends Phaser.Scene {
       stopMenuMusic();
       this.scene.start("StoryScene", { chapterId: chapter.id });
     });
+  }
+
+  private chapterCardDescription(unlocked: boolean, completed: boolean) {
+    if (!unlocked) return "Próximamente.";
+    if (completed) return "Recuerdo completado.";
+    return "Una tarde para descubrir paso a paso.";
   }
 
   private drawBackground(time: number) {
