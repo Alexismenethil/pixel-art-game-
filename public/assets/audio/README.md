@@ -4,6 +4,7 @@ Put background music files here.
 
 The story scene uses location-specific chapter 1 ambience/music files:
 
+- `home-theme.mp3` starts at 00:06 and plays behind the loading/home screens.
 - `chapter-1-taxi.mp3`
 - `chapter-1-hospital.mp3`
 - `chapter-1-road.mp3`

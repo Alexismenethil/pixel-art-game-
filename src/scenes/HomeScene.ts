@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { chapters, isChapterAvailableInCurrentDeploy, type Chapter } from "../game/data/chapters";
+import { fadeOutMenuMusic, startMenuMusic } from "../game/systems/menuMusic";
 import { loadProgress, resetProgress } from "../game/systems/ProgressStore";
 
 export class HomeScene extends Phaser.Scene {
@@ -21,6 +22,7 @@ export class HomeScene extends Phaser.Scene {
     this.createCalendarPanel();
     chapters.forEach((chapter, index) => this.createChapterCard(chapter, index));
     this.createResetControl();
+    startMenuMusic(0.16, 1400);
 
     this.cameras.main.fadeIn(420, 9, 11, 16);
   }
@@ -338,6 +340,7 @@ export class HomeScene extends Phaser.Scene {
   private startChapter(chapter: Chapter) {
     if (!isChapterAvailableInCurrentDeploy(chapter.id)) return;
 
+    fadeOutMenuMusic(620);
     this.cameras.main.fadeOut(260, 9, 11, 16);
     this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
       this.scene.start("StoryScene", { chapterId: chapter.id });

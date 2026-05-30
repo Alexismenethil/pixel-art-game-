@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { chapters, isChapterAvailableInCurrentDeploy, type ChapterId } from "../game/data/chapters";
+import { fadeOutMenuMusic, startMenuMusic } from "../game/systems/menuMusic";
 
 export class BootScene extends Phaser.Scene {
   private loadingBar!: Phaser.GameObjects.Rectangle;
@@ -106,6 +107,8 @@ export class BootScene extends Phaser.Scene {
       this.bootBackdrop?.setAlpha(0.12 + value * 0.44);
       this.bootOverlay?.setAlpha(0.72 - value * 0.24);
     });
+
+    startMenuMusic(0.14, 2600);
 
     this.load.image("home-river-hero", "/assets/generated/backgrounds/river/beauty-1.png");
     this.load.image("characters-sheet", "/assets/characters-sheet.png");
@@ -302,6 +305,7 @@ export class BootScene extends Phaser.Scene {
       const startBeatId = params.get("beat") ?? undefined;
       const startScene = () => {
         if (this.isPlayableChapterId(chapterId)) {
+          fadeOutMenuMusic(520);
           this.scene.start("StoryScene", { chapterId, startBeatId });
           return;
         }
