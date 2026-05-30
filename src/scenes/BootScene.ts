@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { chapters, isChapterAvailableInCurrentDeploy, type ChapterId } from "../game/data/chapters";
-import { fadeOutMenuMusic, startMenuMusic } from "../game/systems/menuMusic";
+import { startMenuMusic, stopMenuMusic } from "../game/systems/menuMusic";
 
 export class BootScene extends Phaser.Scene {
   private loadingBar!: Phaser.GameObjects.Rectangle;
@@ -9,6 +9,8 @@ export class BootScene extends Phaser.Scene {
   private loadingGlow!: Phaser.GameObjects.Rectangle;
   private bootBackdrop?: Phaser.GameObjects.Image;
   private bootOverlay?: Phaser.GameObjects.Rectangle;
+  private enterPrompt?: Phaser.GameObjects.Text;
+  private enteredFromLoading = false;
 
   constructor() {
     super("BootScene");
@@ -51,7 +53,7 @@ export class BootScene extends Phaser.Scene {
     });
 
     this.add
-      .text(480, 232, "Capitulo 1", {
+      .text(480, 232, "Capítulo 1", {
         fontFamily: "Courier New",
         fontSize: "18px",
         fontStyle: "bold",
@@ -61,7 +63,7 @@ export class BootScene extends Phaser.Scene {
       .setDepth(5);
 
     this.add
-      .text(480, 262, "Donde el rio nos vio", {
+      .text(480, 262, "Donde el río nos vio", {
         fontFamily: "Courier New",
         fontSize: "24px",
         fontStyle: "bold",
@@ -107,8 +109,6 @@ export class BootScene extends Phaser.Scene {
       this.bootBackdrop?.setAlpha(0.12 + value * 0.44);
       this.bootOverlay?.setAlpha(0.72 - value * 0.24);
     });
-
-    startMenuMusic(0.14, 2600);
 
     this.load.image("home-river-hero", "/assets/generated/backgrounds/river/beauty-1.png");
     this.load.image("characters-sheet", "/assets/characters-sheet.png");
@@ -299,31 +299,63 @@ export class BootScene extends Phaser.Scene {
   }
 
   create() {
-    this.time.delayedCall(350, () => {
-      const params = new URLSearchParams(window.location.search);
-      const chapterId = params.get("chapter");
-      const startBeatId = params.get("beat") ?? undefined;
-      const startScene = () => {
-        if (this.isPlayableChapterId(chapterId)) {
-          fadeOutMenuMusic(520);
-          this.scene.start("StoryScene", { chapterId, startBeatId });
-          return;
-        }
-
-        this.scene.start("HomeScene");
-      };
-
-      this.cameras.main.fadeOut(360, 0, 0, 0);
-      this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, startScene);
+    this.loadingGlow.width = 420;
+    this.loadingBar.width = 412;
+    this.loadingText.setText("100%");
+    this.loadingDetailText.setText("Todo listo");
+    this.enterPrompt = this.add
+      .text(480, 464, "Toca para ingresar", {
+        fontFamily: "Courier New",
+        fontSize: "18px",
+        fontStyle: "bold",
+        color: "#fff2dc"
+      })
+      .setOrigin(0.5)
+      .setDepth(8);
+    this.tweens.add({
+      targets: this.enterPrompt,
+      alpha: { from: 0.48, to: 1 },
+      duration: 760,
+      yoyo: true,
+      repeat: -1
     });
+
+    this.input.once("pointerdown", () => this.enterFromLoading());
+    this.input.keyboard?.once("keydown", () => this.enterFromLoading());
   }
 
   private loadingMessageFor(progress: number) {
-    if (progress < 0.22) return "Guardando el frio suave de julio";
+    if (progress < 0.22) return "Guardando el frío suave de julio";
     if (progress < 0.44) return "Preparando el taxi y el hospital";
     if (progress < 0.68) return "Encendiendo el valle";
-    if (progress < 0.9) return "Acomodando el rio";
+    if (progress < 0.9) return "Acomodando el río";
     return "Listo para empezar";
+  }
+
+  private enterFromLoading() {
+    if (this.enteredFromLoading) return;
+    this.enteredFromLoading = true;
+
+    const params = new URLSearchParams(window.location.search);
+    const chapterId = params.get("chapter");
+    const startBeatId = params.get("beat") ?? undefined;
+    const shouldStartStory = this.isPlayableChapterId(chapterId);
+
+    if (shouldStartStory) {
+      stopMenuMusic();
+    } else {
+      startMenuMusic(0.16, 1500);
+    }
+
+    this.cameras.main.fadeOut(360, 0, 0, 0);
+    this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
+      if (shouldStartStory) {
+        this.scene.start("StoryScene", { chapterId, startBeatId });
+        return;
+      }
+
+      this.scene.start("HomeScene");
+    });
   }
 
   private isPlayableChapterId(chapterId: string | null): chapterId is ChapterId {

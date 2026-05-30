@@ -20,6 +20,7 @@ import {
   registerGameAudioElement,
   unregisterGameAudioElement
 } from "../game/systems/audioLifecycle";
+import { stopMenuMusic } from "../game/systems/menuMusic";
 import {
   addMemory,
   addStoryStat,
@@ -54,7 +55,7 @@ const locationLabels: Record<LocationId, string> = {
   bosquete: "campo",
   valley: "valle",
   ravine: "quebrada",
-  river: "rio",
+  river: "río",
   night: "noche",
   room: "recuerdos"
 };
@@ -200,6 +201,7 @@ export class StoryScene extends Phaser.Scene {
   }
 
   init(data: StorySceneData) {
+    stopMenuMusic();
     const requestedChapter = chapters.find((chapter) => chapter.id === data.chapterId);
     this.chapter =
       requestedChapter && isChapterAvailableInCurrentDeploy(requestedChapter.id)
@@ -298,7 +300,7 @@ export class StoryScene extends Phaser.Scene {
       if (this.tryCollectMemory(pointer)) return;
       if (this.trySelectChoice(pointer)) return;
       if (this.awaitingChoice) {
-        this.flashToast("Elige una opcion para continuar");
+        this.flashToast("Elige una opción para continuar");
         return;
       }
       this.advance();
@@ -899,7 +901,7 @@ export class StoryScene extends Phaser.Scene {
     }
 
     if (this.awaitingChoice) {
-      this.flashToast("Elige una opcion para continuar");
+      this.flashToast("Elige una opción para continuar");
       return;
     }
 
@@ -1020,7 +1022,7 @@ export class StoryScene extends Phaser.Scene {
         .setOrigin(0.5)
         .setAlpha(0);
       const subtitle = this.add
-        .text(0, 6, `Capitulo ${this.chapter.number}`, {
+        .text(0, 6, `Capítulo ${this.chapter.number}`, {
           fontFamily: "Courier New",
           fontSize: "14px",
           color: "#b7b0a5"
@@ -1028,7 +1030,7 @@ export class StoryScene extends Phaser.Scene {
         .setOrigin(0.5)
         .setAlpha(0);
       const quote = this.add
-        .text(0, 44, "Y todavia nos sigue viendo.", {
+        .text(0, 44, "Y todavía nos sigue viendo.", {
           fontFamily: "Courier New",
           fontSize: "16px",
           fontStyle: "italic",
@@ -1046,7 +1048,7 @@ export class StoryScene extends Phaser.Scene {
         .setAlpha(0);
       const { ternura, nervios, sueno } = this.progress.storyStats;
       const stats = this.add
-        .text(0, 110, `ternura ${ternura}   nervios ${nervios}   sueno ${sueno}`, {
+        .text(0, 110, `ternura ${ternura}   nervios ${nervios}   sueño ${sueno}`, {
           fontFamily: "Courier New",
           fontSize: "12px",
           color: "#8fe8ff"
@@ -3230,7 +3232,7 @@ export class StoryScene extends Phaser.Scene {
 
   private updateScoreText() {
     const { ternura, nervios, sueno } = this.progress.storyStats;
-    this.scoreText.setText(`ternura ${ternura}  |  nervios ${nervios}  |  sueno ${sueno}`);
+    this.scoreText.setText(`ternura ${ternura}  |  nervios ${nervios}  |  sueño ${sueno}`);
   }
 
   private updateMemoryCounterText() {

@@ -1585,7 +1585,7 @@ export const chapters: Chapter[] = [
     number: 2,
     title: "Después del primer beso",
     route: "Noche > Puente > Silencio",
-    lockedTeaser: "Proximamente.",
+    lockedTeaser: "Próximamente.",
     beats: [
       {
         id: "kiss-placeholder",
@@ -1605,7 +1605,7 @@ export const chapters: Chapter[] = [
     number: 3,
     title: "Primera salida",
     route: "Ciudad > Dulce > Promesa",
-    lockedTeaser: "Proximamente.",
+    lockedTeaser: "Próximamente.",
     beats: [
       {
         id: "outing-placeholder",
@@ -1625,7 +1625,7 @@ export const chapters: Chapter[] = [
     number: 4,
     title: "Cuarto de recuerdos",
     route: "Álbum > Juegos > Final",
-    lockedTeaser: "Proximamente.",
+    lockedTeaser: "Próximamente.",
     beats: [
       {
         id: "room-placeholder",

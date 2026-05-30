@@ -9,7 +9,6 @@ const MENU_MUSIC_DEFAULT_VOLUME = 0.16;
 
 let menuMusic: HTMLAudioElement | undefined;
 let fadeFrame = 0;
-let unlockListenerInstalled = false;
 
 function ensureMenuMusic() {
   if (!menuMusic) {
@@ -41,7 +40,7 @@ export function startMenuMusic(volume = MENU_MUSIC_DEFAULT_VOLUME, fadeMs = 1800
   music
     .play()
     .then(() => fadeMenuMusicTo(volume, fadeMs))
-    .catch(() => installUnlockListener(volume, fadeMs));
+    .catch(() => undefined);
 }
 
 export function fadeOutMenuMusic(fadeMs = 650) {
@@ -106,21 +105,4 @@ function fadeMenuMusicTo(targetVolume: number, durationMs: number, onDone?: () =
   };
 
   fadeFrame = window.requestAnimationFrame(tick);
-}
-
-function installUnlockListener(volume: number, fadeMs: number) {
-  if (unlockListenerInstalled) return;
-  unlockListenerInstalled = true;
-
-  const unlock = () => {
-    unlockListenerInstalled = false;
-    window.removeEventListener("pointerdown", unlock);
-    window.removeEventListener("keydown", unlock);
-    window.removeEventListener("touchstart", unlock);
-    startMenuMusic(volume, fadeMs);
-  };
-
-  window.addEventListener("pointerdown", unlock, { once: true });
-  window.addEventListener("keydown", unlock, { once: true });
-  window.addEventListener("touchstart", unlock, { once: true });
 }

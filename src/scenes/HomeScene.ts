@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { chapters, isChapterAvailableInCurrentDeploy, type Chapter } from "../game/data/chapters";
-import { fadeOutMenuMusic, startMenuMusic } from "../game/systems/menuMusic";
+import { fadeOutMenuMusic, startMenuMusic, stopMenuMusic } from "../game/systems/menuMusic";
 import { loadProgress, resetProgress } from "../game/systems/ProgressStore";
 
 export class HomeScene extends Phaser.Scene {
@@ -49,7 +49,7 @@ export class HomeScene extends Phaser.Scene {
 
   private createHero() {
     this.add
-      .text(70, 40, "CAPITULO 1 DISPONIBLE", {
+      .text(70, 40, "CAPÍTULO 1 DISPONIBLE", {
         fontFamily: "Courier New",
         fontSize: "14px",
         fontStyle: "bold",
@@ -76,7 +76,7 @@ export class HomeScene extends Phaser.Scene {
       .setDepth(3);
 
     this.add
-      .text(74, 133, "Donde el rio nos vio", {
+      .text(74, 133, "Donde el río nos vio", {
         fontFamily: "Courier New",
         fontSize: "28px",
         fontStyle: "bold",
@@ -88,7 +88,7 @@ export class HomeScene extends Phaser.Scene {
       .text(
         76,
         178,
-        "Empieza el primer recuerdo: taxi, hospital, valle y el camino hasta el rio. Los siguientes capitulos quedan guardados para abrirse mes a mes.",
+        "Empieza el primer recuerdo: taxi, hospital, valle y el camino hasta el río. Los siguientes capítulos quedan guardados para abrirse mes a mes.",
         {
           fontFamily: "Courier New",
           fontSize: "16px",
@@ -99,7 +99,7 @@ export class HomeScene extends Phaser.Scene {
       )
       .setDepth(3);
 
-    this.createPrimaryButton(76, 264, 310, 62, "ENTRAR AL CAPITULO 1", "El rio ya esta listo", () => {
+    this.createPrimaryButton(76, 264, 310, 62, "ENTRAR AL CAPÍTULO 1", "El río ya está listo", () => {
       this.startChapter(chapters[0]);
     });
   }
@@ -108,7 +108,7 @@ export class HomeScene extends Phaser.Scene {
     const panel = this.add.container(654, 52).setDepth(4);
     const bg = this.add.rectangle(0, 0, 238, 232, 0x071018, 0.74).setOrigin(0).setStrokeStyle(2, 0xffd28a, 0.9);
     const shine = this.add.rectangle(0, 0, 238, 7, 0xe79037, 0.96).setOrigin(0);
-    const title = this.add.text(18, 22, "Nuevo capitulo", {
+    const title = this.add.text(18, 22, "Nuevo capítulo", {
       fontFamily: "Courier New",
       fontSize: "18px",
       fontStyle: "bold",
@@ -120,7 +120,7 @@ export class HomeScene extends Phaser.Scene {
       fontStyle: "bold",
       color: "#ffd28a"
     });
-    const copy = this.add.text(18, 84, "Por ahora solo se juega el capitulo 1. Los demas ya estan reservados en el selector.", {
+    const copy = this.add.text(18, 84, "Por ahora solo se juega el capítulo 1. Los demás ya están reservados en el selector.", {
       fontFamily: "Courier New",
       fontSize: "13px",
       color: "#d8d0c2",
@@ -168,7 +168,7 @@ export class HomeScene extends Phaser.Scene {
       fontStyle: "bold",
       color: unlocked ? "#ffd28a" : "#566173"
     });
-    const eyebrow = this.add.text(16, 18, `CAPITULO ${chapter.number}`, {
+    const eyebrow = this.add.text(16, 18, `CAPÍTULO ${chapter.number}`, {
       fontFamily: "Courier New",
       fontSize: "12px",
       fontStyle: "bold",
@@ -189,7 +189,7 @@ export class HomeScene extends Phaser.Scene {
       lineSpacing: 4,
       wordWrap: { width: 164 }
     });
-    const statusLabel = completed ? "COMPLETADO" : unlocked ? "JUGAR AHORA" : "PROXIMAMENTE";
+    const statusLabel = completed ? "COMPLETADO" : unlocked ? "JUGAR AHORA" : "PRÓXIMAMENTE";
     const statusBg = this.add.rectangle(16, 102, 118, 18, unlocked ? 0x123438 : 0x161224, 0.94).setOrigin(0);
     const statusText = this.add.text(23, 106, statusLabel, {
       fontFamily: "Courier New",
@@ -286,7 +286,7 @@ export class HomeScene extends Phaser.Scene {
       fontStyle: "bold",
       color: "#fff2dc"
     }).setOrigin(0.5);
-    const body = this.add.text(480, 252, "Se borraran tus recuerdos guardados y el avance local de esta partida.", {
+    const body = this.add.text(480, 252, "Se borrarán tus recuerdos guardados y el avance local de esta partida.", {
       fontFamily: "Courier New",
       fontSize: "14px",
       color: "#d8d0c2",
@@ -295,7 +295,7 @@ export class HomeScene extends Phaser.Scene {
       wordWrap: { width: 326 }
     }).setOrigin(0.5);
     const cancel = this.createModalButton(288, 310, 134, "CANCELAR", 0x172a2f, 0x8fe8ff, () => this.closeResetModal());
-    const confirm = this.createModalButton(438, 310, 238, "SI, REINICIAR", 0xffb55c, 0xfff2dc, () => {
+    const confirm = this.createModalButton(438, 310, 238, "SÍ, REINICIAR", 0xffb55c, 0xfff2dc, () => {
       resetProgress();
       this.closeResetModal();
       this.scene.restart();
@@ -340,9 +340,10 @@ export class HomeScene extends Phaser.Scene {
   private startChapter(chapter: Chapter) {
     if (!isChapterAvailableInCurrentDeploy(chapter.id)) return;
 
-    fadeOutMenuMusic(620);
+    fadeOutMenuMusic(220);
     this.cameras.main.fadeOut(260, 9, 11, 16);
     this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
+      stopMenuMusic();
       this.scene.start("StoryScene", { chapterId: chapter.id });
     });
   }
