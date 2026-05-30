@@ -64,16 +64,16 @@ const ambienceByLocation: Record<LocationId, AmbienceId> = {
 // Relaxed immersive mix: ambient beds stay present enough to place the reader
 // inside the scene, while music remains behind the dialogue.
 const targetLayerVolume: Record<AmbienceId, number> = {
-  taxi: 0.062,
-  hospital: 0.048,
-  road: 0.07,
-  bosquete: 0.078,
-  valley: 0.074,
-  ravine: 0.054,
-  river: 0.11,
-  night: 0.058,
-  room: 0.04,
-  intimate: 0.045
+  taxi: 0.044,
+  hospital: 0.052,
+  road: 0.05,
+  bosquete: 0.054,
+  valley: 0.052,
+  ravine: 0.058,
+  river: 0.07,
+  night: 0.04,
+  room: 0.028,
+  intimate: 0.032
 };
 
 const musicColorByLocation: Record<LocationId, LocationMusicColor> = {
@@ -181,6 +181,14 @@ export class AmbienceEngine {
   private routedExternalMusic = new Set<HTMLMediaElement>();
   private activeExternalMusic?: HTMLMediaElement;
 
+  // "Su canción": a single special track that lives beneath everything.
+  private signatureElement?: HTMLMediaElement;
+  private signatureSource?: MediaElementAudioSourceNode;
+  private signatureGain?: GainNode;
+  private signatureLowpass?: BiquadFilterNode;
+  private signatureReverbSend?: GainNode;
+  private signatureBaseVolume = 0.06;
+
   ensureContext(): AudioContext | undefined {
     if (this.context) return this.context;
     const Ctor =
@@ -202,8 +210,8 @@ export class AmbienceEngine {
     masterHighpass.frequency.setValueAtTime(24, ctx.currentTime);
     masterHighpass.Q.setValueAtTime(0.65, ctx.currentTime);
     masterAir.type = "highshelf";
-    masterAir.frequency.setValueAtTime(9500, ctx.currentTime);
-    masterAir.gain.setValueAtTime(-0.8, ctx.currentTime);
+    masterAir.frequency.setValueAtTime(7600, ctx.currentTime);
+    masterAir.gain.setValueAtTime(-2.6, ctx.currentTime);
     masterCompressor.threshold.setValueAtTime(-18, ctx.currentTime);
     masterCompressor.knee.setValueAtTime(24, ctx.currentTime);
     masterCompressor.ratio.setValueAtTime(2.2, ctx.currentTime);
@@ -268,6 +276,8 @@ export class AmbienceEngine {
   }
 
   setIntimate(active: boolean, immediate = false) {
+    // Their song blooms with the intimacy of the moment.
+    this.setSignatureIntimate(active);
     if (active && !this.intimateLayer) {
       const ctx = this.ensureContext();
       if (!ctx || !this.bus) return;
@@ -340,6 +350,7 @@ export class AmbienceEngine {
     this.stopHeartbeat();
     this.stopMusic(true);
     [...this.routedExternalMusic].forEach((element) => this.releaseExternalMusic(element));
+    if (this.signatureElement) this.releaseSignatureUnderscore(this.signatureElement);
     
     // Immediate cleanup of layers to prevent intervals running on closed context
     const cleanLayerImmediate = (layer: AmbienceLayer) => {
@@ -454,6 +465,90 @@ export class AmbienceEngine {
     }
     this.externalMusicRoutings.delete(element);
     this.routedExternalMusic.delete(element);
+  }
+
+  // Route the special song as a warm, low-passed bed under the whole mix: a
+  // single continuous track you feel more than hear — like it's playing in the
+  // next room — so it never fights the per-location music or the dialogue. Its
+  // level rises gently from silence so it never "starts" abruptly.
+  connectSignatureUnderscore(element: HTMLMediaElement, baseVolume = 0.2) {
+    const ctx = this.ensureContext();
+    if (!ctx || !this.bus) return false;
+    if (this.signatureElement === element && this.signatureSource) {
+      this.signatureBaseVolume = baseVolume;
+      return true;
+    }
+    try {
+      const source = ctx.createMediaElementSource(element);
+      const highpass = ctx.createBiquadFilter();
+      const body = ctx.createBiquadFilter();
+      const lowpass = ctx.createBiquadFilter();
+      const gain = ctx.createGain();
+      const reverbSend = ctx.createGain();
+      const now = ctx.currentTime;
+
+      highpass.type = "highpass";
+      highpass.frequency.setValueAtTime(58, now);
+      highpass.Q.setValueAtTime(0.6, now);
+      body.type = "lowshelf";
+      body.frequency.setValueAtTime(220, now);
+      body.gain.setValueAtTime(2.6, now);
+      lowpass.type = "lowpass";
+      lowpass.frequency.setValueAtTime(1700, now); // present and warm, no harsh top
+      lowpass.Q.setValueAtTime(0.5, now);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, baseVolume), now + 3.2);
+      reverbSend.gain.setValueAtTime(0.22, now);
+
+      source.connect(highpass);
+      highpass.connect(body);
+      body.connect(lowpass);
+      lowpass.connect(gain);
+      gain.connect(this.bus);
+      if (this.reverbNode) {
+        gain.connect(reverbSend);
+        reverbSend.connect(this.reverbNode);
+      }
+
+      this.signatureElement = element;
+      this.signatureSource = source;
+      this.signatureGain = gain;
+      this.signatureLowpass = lowpass;
+      this.signatureReverbSend = reverbSend;
+      this.signatureBaseVolume = baseVolume;
+      return true;
+    } catch (error) {
+      console.warn("Could not route signature underscore:", error);
+      return false;
+    }
+  }
+
+  // In intimate beats / the kiss, let their song bloom: a touch louder and the
+  // lowpass opens so the melody shines through — then it sinks back beneath.
+  setSignatureIntimate(active: boolean) {
+    const ctx = this.context;
+    if (!ctx || !this.signatureGain || !this.signatureLowpass) return;
+    const now = ctx.currentTime;
+    const vol = active ? Math.min(0.42, this.signatureBaseVolume * 1.7) : this.signatureBaseVolume;
+    const cutoff = active ? 3200 : 1700;
+    const glide = active ? 0.9 : 1.7;
+    this.signatureGain.gain.setTargetAtTime(vol, now, glide);
+    this.signatureLowpass.frequency.setTargetAtTime(cutoff, now, glide);
+  }
+
+  releaseSignatureUnderscore(element: HTMLMediaElement) {
+    if (this.signatureElement !== element) return;
+    try {
+      this.signatureSource?.disconnect();
+      this.signatureGain?.disconnect();
+      this.signatureLowpass?.disconnect();
+      this.signatureReverbSend?.disconnect();
+    } catch {}
+    this.signatureElement = undefined;
+    this.signatureSource = undefined;
+    this.signatureGain = undefined;
+    this.signatureLowpass = undefined;
+    this.signatureReverbSend = undefined;
   }
 
   private applyExternalMusicColor(routing: ExternalMusicRouting, location: LocationId) {

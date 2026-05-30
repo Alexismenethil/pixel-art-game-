@@ -126,6 +126,12 @@ export type Chapter = {
   beats: StoryBeat[];
 };
 
+export const currentDeployChapterIds: readonly ChapterId[] = ["chapter-1"];
+
+export function isChapterAvailableInCurrentDeploy(chapterId: ChapterId) {
+  return currentDeployChapterIds.includes(chapterId);
+}
+
 export const chapters: Chapter[] = [
   {
     id: "chapter-1",
@@ -893,8 +899,8 @@ export const chapters: Chapter[] = [
         speaker: "Alexis",
         text: "Sí. Algún día. Y si no es aquí, en algún lugar que se sienta igual de nuestro.",
         actors: {
-          alexis: { x: 412, y: 454, mood: "shy", expression: "after-kiss-shy", facing: "right", scale: 0.58 },
-          kiara: { x: 538, y: 452, mood: "shy", expression: "after-kiss-blush", facing: "left", scale: 0.58 }
+          alexis: { x: 412, y: 454, mood: "talking", expression: "flirty-shy", facing: "right", scale: 0.58 },
+          kiara: { x: 538, y: 452, mood: "shy", expression: "lean-in", facing: "left", scale: 0.58 }
         },
         props: [{ texture: "scene-valley-cima-close", x: 480, y: 540, scale: 1, depth: 23 }],
         memory: {
@@ -905,7 +911,7 @@ export const chapters: Chapter[] = [
           y: 250
         },
         camera: { zoom: 1.26, x: 486, y: 314, duration: 1100, driftX: 0.8, driftY: 0.6, driftSpeed: 0.26 },
-        cinematic: { letterbox: 28, warmth: 0.08, vignette: 0.09, hideHud: true, whisper: "lo dijo bajito" }
+        cinematic: { letterbox: 28, warmth: 0.08, vignette: 0.09, hideHud: true, whisper: "lo dijo como promesa" }
       },
       {
         id: "valley-silence-after-dream",
@@ -1579,7 +1585,7 @@ export const chapters: Chapter[] = [
     number: 2,
     title: "Después del primer beso",
     route: "Noche > Puente > Silencio",
-    lockedTeaser: "Se desbloquea al terminar el capítulo 1.",
+    lockedTeaser: "Proximamente.",
     beats: [
       {
         id: "kiss-placeholder",
@@ -1599,7 +1605,7 @@ export const chapters: Chapter[] = [
     number: 3,
     title: "Primera salida",
     route: "Ciudad > Dulce > Promesa",
-    lockedTeaser: "Se desbloquea al terminar el capítulo 2.",
+    lockedTeaser: "Proximamente.",
     beats: [
       {
         id: "outing-placeholder",
@@ -1619,7 +1625,7 @@ export const chapters: Chapter[] = [
     number: 4,
     title: "Cuarto de recuerdos",
     route: "Álbum > Juegos > Final",
-    lockedTeaser: "Se desbloquea al terminar el capítulo 3.",
+    lockedTeaser: "Proximamente.",
     beats: [
       {
         id: "room-placeholder",

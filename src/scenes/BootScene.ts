@@ -1,46 +1,113 @@
 import Phaser from "phaser";
+import { chapters, isChapterAvailableInCurrentDeploy, type ChapterId } from "../game/data/chapters";
+
 export class BootScene extends Phaser.Scene {
   private loadingBar!: Phaser.GameObjects.Rectangle;
   private loadingText!: Phaser.GameObjects.Text;
+  private loadingDetailText!: Phaser.GameObjects.Text;
+  private loadingGlow!: Phaser.GameObjects.Rectangle;
+  private bootBackdrop?: Phaser.GameObjects.Image;
+  private bootOverlay?: Phaser.GameObjects.Rectangle;
 
   constructor() {
     super("BootScene");
   }
 
   preload() {
-    this.cameras.main.setBackgroundColor("#090b10");
-    this.add
-      .text(480, 206, "Alexis & Kiara", {
+    this.cameras.main.setBackgroundColor("#000000");
+    this.add.rectangle(480, 270, 960, 540, 0x000000).setDepth(0);
+    this.load.once("filecomplete-image-home-river-hero", () => {
+      this.bootBackdrop = this.add.image(480, 270, "home-river-hero").setDisplaySize(1000, 563).setAlpha(0.12).setDepth(1);
+      this.bootOverlay = this.add.rectangle(480, 270, 960, 540, 0x03060c, 0.72).setDepth(2);
+      this.tweens.add({
+        targets: this.bootBackdrop,
+        x: 487,
+        y: 266,
+        duration: 6200,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut"
+      });
+    });
+    this.add.rectangle(480, 156, 330, 2, 0xe79037, 0.62).setDepth(4);
+    this.add.rectangle(480, 396, 330, 2, 0x53b6b2, 0.28).setDepth(4);
+
+    const title = this.add
+      .text(480, 176, "Alexis & Kiara", {
         fontFamily: "Courier New",
-        fontSize: "56px",
+        fontSize: "54px",
         fontStyle: "bold",
         color: "#fff2dc"
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setDepth(5);
+    this.tweens.add({
+      targets: title,
+      alpha: { from: 0.82, to: 1 },
+      duration: 1120,
+      yoyo: true,
+      repeat: -1
+    });
 
     this.add
-      .text(480, 264, "Cargando recuerdos...", {
+      .text(480, 232, "Capitulo 1", {
         fontFamily: "Courier New",
-        fontSize: "20px",
+        fontSize: "18px",
+        fontStyle: "bold",
+        color: "#53b6b2"
+      })
+      .setOrigin(0.5)
+      .setDepth(5);
+
+    this.add
+      .text(480, 262, "Donde el rio nos vio", {
+        fontFamily: "Courier New",
+        fontSize: "24px",
+        fontStyle: "bold",
+        color: "#e79037"
+      })
+      .setOrigin(0.5)
+      .setDepth(5);
+
+    this.add
+      .text(480, 304, "Cargando el primer recuerdo...", {
+        fontFamily: "Courier New",
+        fontSize: "16px",
         color: "#b7b0a5"
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setDepth(5);
 
-    this.add.rectangle(480, 310, 420, 18, 0x1c2027).setStrokeStyle(2, 0x697383);
-    this.loadingBar = this.add.rectangle(272, 310, 0, 12, 0xe79037).setOrigin(0, 0.5);
+    this.add.rectangle(480, 344, 424, 16, 0x08090c, 0.9).setStrokeStyle(2, 0x3b4656).setDepth(5);
+    this.loadingGlow = this.add.rectangle(270, 344, 0, 10, 0x53b6b2, 0.22).setOrigin(0, 0.5).setDepth(6);
+    this.loadingBar = this.add.rectangle(274, 344, 0, 6, 0xe79037).setOrigin(0, 0.5).setDepth(7);
     this.loadingText = this.add
-      .text(480, 342, "0%", {
+      .text(480, 372, "0%", {
         fontFamily: "Courier New",
         fontSize: "16px",
         color: "#fff2dc"
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setDepth(5);
+    this.loadingDetailText = this.add
+      .text(480, 420, "Preparando la cita", {
+        fontFamily: "Courier New",
+        fontSize: "14px",
+        color: "#9fb0c4"
+      })
+      .setOrigin(0.5)
+      .setDepth(5);
 
     this.load.on("progress", (value: number) => {
+      this.loadingGlow.width = 420 * value;
       this.loadingBar.width = 412 * value;
       this.loadingText.setText(`${Math.round(value * 100)}%`);
+      this.loadingDetailText.setText(this.loadingMessageFor(value));
+      this.bootBackdrop?.setAlpha(0.12 + value * 0.44);
+      this.bootOverlay?.setAlpha(0.72 - value * 0.24);
     });
 
+    this.load.image("home-river-hero", "/assets/generated/backgrounds/river/beauty-1.png");
     this.load.image("characters-sheet", "/assets/characters-sheet.png");
     this.load.image("chapter-1-reference", "/assets/references/chapter-1-ai-background-reference.png");
 
@@ -82,7 +149,7 @@ export class BootScene extends Phaser.Scene {
       ["road-asphalt-path", "/assets/generated/backgrounds/road/beauty-1.png"],
       ["bosquete-clearing", "/assets/chapter-1/bosquete/clearing.png"],
       ["valley-cima-close", "/assets/chapter-1/valley/cima-close.png"],
-      ["ravine-path-down", "/assets/chapter-1/ravine/path-down.png"],
+      ["ravine-path-down", "/assets/chapter-1/ravine/path-down.png?v=ravine-river-path-20260530"],
       ["river-arrival-wide", "/assets/chapter-1/river/llegara%20al%20rio.png"],
       ["river-picnic-spot", "/assets/chapter-1/river/picnic-spot.png"],
       ["river-close-faces", "/assets/chapter-1/river/close-faces.png"]
@@ -233,13 +300,30 @@ export class BootScene extends Phaser.Scene {
       const params = new URLSearchParams(window.location.search);
       const chapterId = params.get("chapter");
       const startBeatId = params.get("beat") ?? undefined;
+      const startScene = () => {
+        if (this.isPlayableChapterId(chapterId)) {
+          this.scene.start("StoryScene", { chapterId, startBeatId });
+          return;
+        }
 
-      if (chapterId) {
-        this.scene.start("StoryScene", { chapterId, startBeatId });
-        return;
-      }
+        this.scene.start("HomeScene");
+      };
 
-      this.scene.start("HomeScene");
+      this.cameras.main.fadeOut(360, 0, 0, 0);
+      this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, startScene);
     });
+  }
+
+  private loadingMessageFor(progress: number) {
+    if (progress < 0.22) return "Guardando el frio suave de julio";
+    if (progress < 0.44) return "Preparando el taxi y el hospital";
+    if (progress < 0.68) return "Encendiendo el valle";
+    if (progress < 0.9) return "Acomodando el rio";
+    return "Listo para empezar";
+  }
+
+  private isPlayableChapterId(chapterId: string | null): chapterId is ChapterId {
+    const candidate = chapters.find((chapter) => chapter.id === chapterId);
+    return Boolean(candidate && isChapterAvailableInCurrentDeploy(candidate.id));
   }
 }

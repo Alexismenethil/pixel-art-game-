@@ -11,6 +11,17 @@ export class CharacterActor {
   private mood: Mood = "idle";
   private phase: number;
   private reaction = "";
+  // Living-blink state: actors close their eyes for a heartbeat now and then so
+  // a held frame reads as a person breathing, not a frozen portrait.
+  private currentTextureKey: string;
+  private readonly closedEyesKey: string;
+  private readonly canBlink: boolean;
+  private animationActive = false;
+  private isBlinking = false;
+  private blinkUntil = 0;
+  private nextBlinkAt = 0;
+  private lastSeconds = 0;
+  private blinkClockSet = false;
 
   constructor(
     scene: Phaser.Scene,
@@ -39,6 +50,11 @@ export class CharacterActor {
 
     this.container = scene.add.container(x, y, [this.shadow, this.sprite, this.reactionText]);
     this.container.setDepth(30);
+    this.currentTextureKey = `${actorId}-neutral`;
+    this.closedEyesKey = `${actorId}-closed-eyes`;
+    this.canBlink = scene.textures.exists(this.closedEyesKey);
+    // Stagger the first blink per actor so the two never blink in lockstep.
+    this.nextBlinkAt = 2.4 + phase * 2.2;
     this.createAnimations();
   }
 
@@ -48,12 +64,18 @@ export class CharacterActor {
 
     this.mood = state.mood;
     this.container.setVisible(willBeVisible);
+    // A new beat overrides any blink in flight; reschedule the next one.
+    this.isBlinking = false;
+    this.nextBlinkAt = this.lastSeconds + this.randomBlinkDelay();
     const animationKey = this.animationForState(state);
     if (animationKey && willBeVisible) {
+      this.animationActive = true;
       this.sprite.play(animationKey, true);
     } else {
+      this.animationActive = false;
       this.sprite.stop();
-      this.sprite.setTexture(this.textureForState(state));
+      this.currentTextureKey = this.textureForState(state);
+      this.sprite.setTexture(this.currentTextureKey);
     }
     this.sprite.setFlipX(state.facing === "left");
     this.sprite.setScale(state.scale ?? 0.46);
@@ -104,6 +126,8 @@ export class CharacterActor {
   }
 
   update(timeSeconds: number) {
+    this.lastSeconds = timeSeconds;
+    this.updateBlink(timeSeconds);
     const speed =
       this.mood === "walk" ? 4.2 : this.mood === "nervous" ? 8 : this.mood === "laughing" ? 7 : this.mood === "happy" ? 6 : 4;
     const bobSize = this.mood === "walk" ? 2 : this.mood === "laughing" ? 5 : this.mood === "happy" ? 4 : 2;
@@ -149,6 +173,56 @@ export class CharacterActor {
 
   getRenderObject() {
     return this.container;
+  }
+
+  private randomBlinkDelay() {
+    // Human blink cadence: a few seconds apart, never metronomic.
+    return 2.6 + Math.random() * 4.2;
+  }
+
+  private blinkBlockedByExpression() {
+    const key = this.currentTextureKey;
+    // The closed-eyes assets are full-body drawings, not expression overlays.
+    // Blinking over authored reactions can briefly swap the whole pose and look
+    // like a visual bug, so only neutral holds get the living blink treatment.
+    return key !== `${this.actorId}-neutral`;
+  }
+
+  private updateBlink(timeSeconds: number) {
+    if (!this.canBlink) return;
+
+    // Anchor the blink clock to the scene's first frame (timeSeconds is absolute
+    // game time, so we can't trust a value scheduled before the scene ran).
+    if (!this.blinkClockSet) {
+      this.blinkClockSet = true;
+      this.nextBlinkAt = timeSeconds + 2.4 + this.phase * 2.2;
+    }
+
+    if (this.isBlinking) {
+      if (timeSeconds >= this.blinkUntil) {
+        // Reopen the eyes back to whatever expression the beat is holding.
+        this.sprite.setTexture(this.currentTextureKey);
+        this.isBlinking = false;
+        // ~25% of the time, follow with a quick second blink — the natural flutter.
+        this.nextBlinkAt =
+          timeSeconds + (Math.random() < 0.25 ? 0.16 : this.randomBlinkDelay());
+      }
+      return;
+    }
+
+    if (
+      !this.container.visible ||
+      this.animationActive ||
+      this.blinkBlockedByExpression() ||
+      this.sprite.texture.key !== this.currentTextureKey ||
+      timeSeconds < this.nextBlinkAt
+    ) {
+      return;
+    }
+
+    this.isBlinking = true;
+    this.blinkUntil = timeSeconds + 0.09 + Math.random() * 0.04;
+    this.sprite.setTexture(this.closedEyesKey);
   }
 
   private textureForState(state: ActorBeatState) {

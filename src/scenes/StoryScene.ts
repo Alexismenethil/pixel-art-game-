@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import {
   chapters,
+  isChapterAvailableInCurrentDeploy,
   type ActorId,
   type Chapter,
   type ChapterId,
@@ -36,6 +37,14 @@ type StorySceneData = {
 type ChoiceButton = {
   bounds: Phaser.Geom.Rectangle;
   choice: StoryChoice;
+  container: Phaser.GameObjects.Container;
+  bg: Phaser.GameObjects.Rectangle;
+  glow: Phaser.GameObjects.Rectangle;
+  accent: Phaser.GameObjects.Rectangle;
+  label: Phaser.GameObjects.Text;
+  indicator: Phaser.GameObjects.Text;
+  index: number;
+  accentColor: number;
 };
 
 const locationLabels: Record<LocationId, string> = {
@@ -92,16 +101,18 @@ const colorGrades: Record<LocationId, { color: number; alpha: number }> = {
   room: { color: 0xd8c0e0, alpha: 0.15 }
 };
 
+// Per-location music sits UNDER "su canción" now: a soft color for each place,
+// not a competing track. Kept low so the special song stays the voice you hear.
 const musicVolumeByLocation: Record<LocationId, number> = {
-  taxi: 0.2,
-  hospital: 0.17,
-  road: 0.22,
-  bosquete: 0.23,
-  valley: 0.22,
-  ravine: 0.18,
-  river: 0.24,
-  night: 0.17,
-  room: 0.16
+  taxi: 0.1,
+  hospital: 0.13,
+  road: 0.11,
+  bosquete: 0.115,
+  valley: 0.11,
+  ravine: 0.14,
+  river: 0.12,
+  night: 0.085,
+  room: 0.08
 };
 
 export class StoryScene extends Phaser.Scene {
@@ -155,6 +166,8 @@ export class StoryScene extends Phaser.Scene {
   private pendingSmsNotificationSound = false;
   private choicesContainer!: Phaser.GameObjects.Container;
   private choiceButtons: ChoiceButton[] = [];
+  private hoveredChoiceIndex = -1;
+  private choiceLocked = false;
   private sceneProps: Phaser.GameObjects.Image[] = [];
   private scenePropsSignature = "";
   private memoryMarker?: Phaser.GameObjects.Container;
@@ -172,6 +185,8 @@ export class StoryScene extends Phaser.Scene {
   private backgroundMusic?: HTMLAudioElement;
   private backgroundMusicElements = new Set<HTMLAudioElement>();
   private activeMusicUrl?: string;
+  private signatureMusic?: HTMLAudioElement;
+  private signatureStarted = false;
   private triedBackgroundMusic = false;
   private audioSessionId = 0;
   private awaitingChoice = false;
@@ -185,7 +200,11 @@ export class StoryScene extends Phaser.Scene {
   }
 
   init(data: StorySceneData) {
-    this.chapter = chapters.find((chapter) => chapter.id === data.chapterId) ?? chapters[0];
+    const requestedChapter = chapters.find((chapter) => chapter.id === data.chapterId);
+    this.chapter =
+      requestedChapter && isChapterAvailableInCurrentDeploy(requestedChapter.id)
+        ? requestedChapter
+        : chapters[0];
     const startBeatIndex = data.startBeatId
       ? this.chapter.beats.findIndex((beat) => beat.id === data.startBeatId)
       : -1;
@@ -195,6 +214,8 @@ export class StoryScene extends Phaser.Scene {
     this.isTransitioning = false;
     this.awaitingChoice = false;
     this.choiceButtons = [];
+    this.hoveredChoiceIndex = -1;
+    this.choiceLocked = false;
     this.sceneProps = [];
     this.scenePropsSignature = "";
     this.dialogueTimer?.remove(false);
@@ -211,6 +232,8 @@ export class StoryScene extends Phaser.Scene {
     this.cameraSettling = false;
     this.stopAllAudioNow(false);
     this.triedBackgroundMusic = false;
+    this.signatureMusic = undefined;
+    this.signatureStarted = false;
     this.audioEnabled = true;
     this.smsNotification?.destroy();
     this.smsNotification = undefined;
@@ -259,7 +282,7 @@ export class StoryScene extends Phaser.Scene {
     this.applyBeat(this.currentBeat(), true);
 
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
-      if (this.isTransitioning) return;
+      if (this.isTransitioning || this.choiceLocked) return;
       if (this.pendingSmsNotificationSound) {
         this.pendingSmsNotificationSound = false;
         if (this.audioEnabled) this.playSmsNotificationSound();
@@ -280,6 +303,8 @@ export class StoryScene extends Phaser.Scene {
       }
       this.advance();
     });
+
+    this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => this.updateChoiceHover(pointer));
 
     this.input.keyboard?.on("keydown-SPACE", () => this.advance());
     this.input.keyboard?.on("keydown-ENTER", () => this.advance());
@@ -860,6 +885,7 @@ export class StoryScene extends Phaser.Scene {
   }
 
   private advance(fromAuto = false) {
+    if (this.choiceLocked) return;
     if (!fromAuto && this.isPlayerInputLocked()) {
       return;
     }
@@ -2411,8 +2437,47 @@ export class StoryScene extends Phaser.Scene {
     return undefined;
   }
 
+  // Their special song runs underneath every location as a constant, gentle
+  // bed. It only starts once a user gesture has unlocked audio, so we attempt it
+  // each beat until playback is allowed; the AmbienceEngine keeps it filtered
+  // and quiet so it never muddies the per-location music.
+  private ensureSignatureUnderscore() {
+    if (!this.audioEnabled || this.signatureStarted) return;
+    this.signatureStarted = true;
+
+    const element = new Audio("/assets/audio/swordsman.mp3");
+    element.loop = true;
+    element.volume = 1; // true level is shaped by the Web Audio gain
+    registerGameAudioElement(element);
+    this.backgroundMusicElements.add(element);
+    this.signatureMusic = element;
+
+    const audioSessionId = this.audioSessionId;
+    // Build the filtered routing before playback so it never blasts unprocessed.
+    // This is THEIR song — it should be clearly present, the voice you hear.
+    this.ambience.connectSignatureUnderscore(element, 0.2);
+    this.ambience.setSignatureIntimate(Boolean(this.currentBeat().cinematic?.intimate));
+
+    element
+      .play()
+      .then(() => {
+        if (!this.audioEnabled || audioSessionId !== this.audioSessionId || this.signatureMusic !== element) {
+          this.stopBackgroundMusicElement(element);
+          if (this.signatureMusic === element) this.signatureMusic = undefined;
+        }
+      })
+      .catch((error) => {
+        // Most often: autoplay not yet unlocked. Reset so the next beat retries.
+        console.warn("Signature underscore not ready yet:", error);
+        if (this.signatureMusic === element) this.signatureMusic = undefined;
+        this.signatureStarted = false;
+        this.stopBackgroundMusicElement(element);
+      });
+  }
+
   private async updateBackgroundMusicForLocation(location: LocationId) {
     if (!this.audioEnabled) return;
+    this.ensureSignatureUnderscore();
     const audioSessionId = this.audioSessionId;
 
     const url = await this.findLocationMusicUrl(location);
@@ -2504,7 +2569,23 @@ export class StoryScene extends Phaser.Scene {
     });
   }
 
+  // Each place in chapter 1 owns a piece of music. Because the story moves
+  // through long contiguous runs of one location, this crossfades only at the
+  // real narrative seams (taxi → hospital → road → …), giving every scene its
+  // own emotional color instead of a single track underneath everything.
   private async findLocationMusicUrl(location: LocationId) {
+    if (this.chapter.id === "chapter-1") {
+      const byLocation: Partial<Record<LocationId, string>> = {
+        taxi: "/assets/audio/chapter-1-taxi.mp3",
+        hospital: "/assets/audio/chapter-1-hospital.mp3",
+        road: "/assets/audio/chapter-1-road.mp3",
+        bosquete: "/assets/audio/chapter-1-bosquete.mp3",
+        valley: "/assets/audio/chapter-1-valley.mp3",
+        ravine: "/assets/audio/chapter-1-ravine.mp3",
+        river: "/assets/audio/chapter-1-river.mp3"
+      };
+      return byLocation[location] ?? "/assets/audio/chapter-1.wav";
+    }
     return "/assets/audio/swordsman.mp3";
   }
 
@@ -2523,6 +2604,25 @@ export class StoryScene extends Phaser.Scene {
         },
         onComplete: () => {
           this.stopBackgroundMusicElement(music);
+        }
+      });
+    }
+
+    // Fade their song out alongside the scene so the chapter closes in silence.
+    const signature = this.signatureMusic;
+    if (signature) {
+      this.signatureMusic = undefined;
+      this.signatureStarted = false;
+      this.tweens.addCounter({
+        from: signature.volume,
+        to: 0,
+        duration: 1200,
+        ease: "Sine.easeIn",
+        onUpdate: (tween) => {
+          signature.volume = tween.getValue() ?? 0;
+        },
+        onComplete: () => {
+          this.stopBackgroundMusicElement(signature);
         }
       });
     }
@@ -2755,6 +2855,8 @@ export class StoryScene extends Phaser.Scene {
     }
     this.backgroundMusic = undefined;
     this.activeMusicUrl = undefined;
+    this.signatureMusic = undefined;
+    this.signatureStarted = false;
     this.triedBackgroundMusic = false;
     this.ambience?.destroy();
     if (recreateAmbience) {
@@ -2764,6 +2866,8 @@ export class StoryScene extends Phaser.Scene {
 
   private stopBackgroundMusicElement(music: HTMLAudioElement) {
     this.ambience?.releaseExternalMusic(music);
+    this.ambience?.releaseSignatureUnderscore(music);
+    if (this.signatureMusic === music) this.signatureMusic = undefined;
     music.pause();
     try {
       music.currentTime = 0;
@@ -2928,37 +3032,136 @@ export class StoryScene extends Phaser.Scene {
     this.choicesContainer.removeAll(true);
     this.choiceButtons = [];
     this.awaitingChoice = false;
+    this.hoveredChoiceIndex = -1;
   }
 
+  // Choice moments are the emotional pivots of a love story — where the player
+  // *decides*. So each option is a small piece of cinema: it slides up and
+  // settles with a stagger, breathes a faint accent shimmer while it waits, and
+  // lifts toward the cursor on hover. The accent borrows the speaker's signature
+  // hue so the buttons feel like the player's own voice answering.
   private renderChoices(beat: StoryBeat) {
     this.clearChoices();
     this.awaitingChoice = Boolean(beat.choices?.length);
-    this.promptText.setText(this.awaitingChoice ? "elige una opcion" : "toca para seguir");
+    this.promptText.setText(this.awaitingChoice ? "elige con el corazon" : "toca para seguir");
 
     if (!beat.choices?.length) return;
 
+    const width = 816;
+    const height = 38;
+    const step = 48;
+    const accentColor = speakerAccentHex.Alexis;
+
     beat.choices.forEach((choice, index) => {
-      const y = index * 40;
-      const background = this.add
-        .rectangle(0, y, 816, 34, 0x10131a, 0.94)
-        .setOrigin(0)
-        .setStrokeStyle(2, 0xe79037);
+      const centerY = index * step + height / 2;
+      const container = this.add.container(width / 2, centerY);
+
+      const glow = this.add
+        .rectangle(0, 0, width + 14, height + 14, accentColor, 0)
+        .setOrigin(0.5)
+        .setBlendMode(Phaser.BlendModes.SCREEN);
+      const bg = this.add
+        .rectangle(0, 0, width, height, 0x10131a, 0.9)
+        .setOrigin(0.5)
+        .setStrokeStyle(2, accentColor, 0.55);
+      const accent = this.add.rectangle(-width / 2 + 3, 0, 4, height, accentColor, 0.85).setOrigin(0.5);
+      const indicator = this.add
+        .text(-width / 2 + 20, 0, "♥", {
+          fontFamily: "Courier New",
+          fontSize: "15px",
+          fontStyle: "bold",
+          color: speakerColors.Kiara
+        })
+        .setOrigin(0.5)
+        .setAlpha(0);
       const label = this.add
-        .text(18, y + 17, `${index + 1}. ${choice.label}`, {
+        .text(-width / 2 + 22, 0, `${index + 1}.  ${choice.label}`, {
           fontFamily: "Courier New",
           fontSize: "14px",
           fontStyle: "bold",
-          color: "#fff2dc",
-          wordWrap: { width: 760 }
+          color: "#e8ddcb",
+          wordWrap: { width: 740 }
         })
         .setOrigin(0, 0.5);
 
-      this.choicesContainer.add([background, label]);
+      container.add([glow, bg, accent, indicator, label]);
+      this.choicesContainer.add(container);
+
+      // Staggered slide-up entrance: each option lands a beat after the last.
+      container.setAlpha(0);
+      container.setX(width / 2 - 26);
+      this.tweens.add({
+        targets: container,
+        alpha: 1,
+        x: width / 2,
+        delay: 90 + index * 110,
+        duration: 460,
+        ease: "Back.easeOut"
+      });
+      // A slow accent breath so the waiting options never feel frozen.
+      this.tweens.add({
+        targets: accent,
+        alpha: 0.4,
+        delay: 360 + index * 110,
+        duration: 1300,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut"
+      });
+
       this.choiceButtons.push({
-        bounds: new Phaser.Geom.Rectangle(this.choicesContainer.x, this.choicesContainer.y + y, 816, 34),
-        choice
+        bounds: new Phaser.Geom.Rectangle(this.choicesContainer.x, this.choicesContainer.y + index * step, width, height),
+        choice,
+        container,
+        bg,
+        glow,
+        accent,
+        label,
+        indicator,
+        index,
+        accentColor
       });
     });
+  }
+
+  private updateChoiceHover(pointer: Phaser.Input.Pointer) {
+    if (!this.awaitingChoice || !this.choiceButtons.length) return;
+
+    const hovered = this.choiceButtons.find((button) => button.bounds.contains(pointer.x, pointer.y));
+    const hoveredIndex = hovered ? hovered.index : -1;
+    if (hoveredIndex === this.hoveredChoiceIndex) return;
+    this.hoveredChoiceIndex = hoveredIndex;
+
+    for (const button of this.choiceButtons) {
+      this.setChoiceHovered(button, button.index === hoveredIndex);
+    }
+
+    this.input.setDefaultCursor(hovered ? "pointer" : "default");
+  }
+
+  private setChoiceHovered(button: ChoiceButton, hovered: boolean) {
+    this.tweens.killTweensOf(button.container);
+    this.tweens.killTweensOf(button.glow);
+    this.tweens.killTweensOf(button.label);
+    this.tweens.killTweensOf(button.indicator);
+
+    if (hovered) {
+      button.bg.setFillStyle(0x1b2129, 0.96);
+      button.bg.setStrokeStyle(2, button.accentColor, 1);
+      button.label.setColor("#fff7e8");
+      this.tweens.add({ targets: button.container, scaleX: 1.018, scaleY: 1.06, duration: 200, ease: "Back.easeOut" });
+      this.tweens.add({ targets: button.glow, alpha: 0.18, duration: 220, ease: "Sine.easeOut" });
+      this.tweens.add({ targets: button.label, x: -button.bg.width / 2 + 30, duration: 220, ease: "Sine.easeOut" });
+      this.tweens.add({ targets: button.indicator, alpha: 1, scaleX: 1.25, scaleY: 1.25, duration: 220, ease: "Back.easeOut" });
+    } else {
+      button.bg.setFillStyle(0x10131a, 0.9);
+      button.bg.setStrokeStyle(2, button.accentColor, 0.55);
+      button.label.setColor("#e8ddcb");
+      this.tweens.add({ targets: button.container, scaleX: 1, scaleY: 1, duration: 220, ease: "Sine.easeOut" });
+      this.tweens.add({ targets: button.glow, alpha: 0, duration: 220, ease: "Sine.easeOut" });
+      this.tweens.add({ targets: button.label, x: -button.bg.width / 2 + 22, duration: 220, ease: "Sine.easeOut" });
+      this.tweens.add({ targets: button.indicator, alpha: 0, scaleX: 1, scaleY: 1, duration: 180, ease: "Sine.easeIn" });
+    }
   }
 
   private trySelectChoice(pointer: Phaser.Input.Pointer) {
@@ -2968,6 +3171,44 @@ export class StoryScene extends Phaser.Scene {
     if (!selected) return false;
 
     const { choice } = selected;
+    this.awaitingChoice = false;
+    this.choiceLocked = true;
+    this.input.setDefaultCursor("default");
+
+    // Confirm beat: the chosen line flares and lifts while its siblings dim away,
+    // so the decision lands before the story moves on.
+    this.choiceButtons.forEach((button) => {
+      this.tweens.killTweensOf(button.container);
+      this.tweens.killTweensOf(button.glow);
+      this.tweens.killTweensOf(button.accent);
+      if (button === selected) {
+        button.bg.setStrokeStyle(2, button.accentColor, 1);
+        button.indicator.setAlpha(1);
+        this.tweens.add({
+          targets: button.glow,
+          alpha: { from: 0.3, to: 0 },
+          duration: 520,
+          ease: "Sine.easeOut"
+        });
+        this.tweens.add({
+          targets: button.container,
+          scaleX: 1.04,
+          scaleY: 1.12,
+          duration: 240,
+          yoyo: true,
+          ease: "Sine.easeOut"
+        });
+      } else {
+        this.tweens.add({
+          targets: button.container,
+          alpha: 0.12,
+          x: button.container.x - 12,
+          duration: 320,
+          ease: "Sine.easeIn"
+        });
+      }
+    });
+
     if (choice.stat) {
       addStoryStat(this.progress, choice.stat.id, choice.stat.amount ?? 1);
       saveProgress(this.progress);
@@ -2976,10 +3217,13 @@ export class StoryScene extends Phaser.Scene {
       this.flashToast(`+${choice.stat.amount ?? 1} ${choice.stat.label}`);
     }
 
-    this.awaitingChoice = false;
-    this.clearChoices();
-    this.setSpeaker(choice.resultSpeaker ?? "Narrador");
-    this.startDialogueText(choice.resultText);
+    // Let the confirmation read for a moment before the answer continues.
+    this.time.delayedCall(360, () => {
+      this.choiceLocked = false;
+      this.clearChoices();
+      this.setSpeaker(choice.resultSpeaker ?? "Narrador");
+      this.startDialogueText(choice.resultText);
+    });
 
     return true;
   }

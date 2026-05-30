@@ -1,4 +1,4 @@
-import type { ChapterId, StoryStatId } from "../data/chapters";
+import { isChapterAvailableInCurrentDeploy, type ChapterId, type StoryStatId } from "../data/chapters";
 
 const STORAGE_KEY = "alexis-kiara-phaser-progress-v1";
 
@@ -26,6 +26,16 @@ const defaultProgress: GameProgress = {
   }
 };
 
+function deploySafeChapterList(chapterIds: ChapterId[] | undefined, keepChapterOne = false) {
+  const safeChapterIds = (chapterIds ?? []).filter(isChapterAvailableInCurrentDeploy);
+
+  if (keepChapterOne && !safeChapterIds.includes("chapter-1")) {
+    safeChapterIds.unshift("chapter-1");
+  }
+
+  return safeChapterIds;
+}
+
 export function loadProgress(): GameProgress {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
@@ -34,8 +44,8 @@ export function loadProgress(): GameProgress {
     const parsed = JSON.parse(raw) as Partial<GameProgress>;
 
     return {
-      unlockedChapters: parsed.unlockedChapters ?? ["chapter-1"],
-      completedChapters: parsed.completedChapters ?? [],
+      unlockedChapters: deploySafeChapterList(parsed.unlockedChapters, true),
+      completedChapters: deploySafeChapterList(parsed.completedChapters),
       memories: parsed.memories ?? [],
       storyStats: {
         ...defaultProgress.storyStats,
@@ -52,6 +62,8 @@ export function saveProgress(progress: GameProgress) {
 }
 
 export function unlockChapter(progress: GameProgress, chapterId: ChapterId) {
+  if (!isChapterAvailableInCurrentDeploy(chapterId)) return;
+
   if (!progress.unlockedChapters.includes(chapterId)) {
     progress.unlockedChapters.push(chapterId);
   }
